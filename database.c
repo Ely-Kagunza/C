@@ -1,170 +1,124 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include "database.h"
 
-typedef struct {
-    int id;
-    char name[100];
-    int age;
-    double salary;
-} Person;
+// Create a new empty database with initial capacity
+Database *db_create(int initial_capacity)
+{
+    Database *db = malloc(sizeof(Database));
+    if (db == NULL)
+    {
+        printf("Failed to allocate database struct!\n");
+        return NULL;
+    }
 
-// Function declarations
-void save_database(const char *filename, Person *people, int count);
-int load_database(const char *filename, Person *people);
-void display_database(Person *people, int count);
-void show_menu(void);
-void add_person(Person *people, int *count);
+    db->records = malloc(sizeof(Person) * initial_capacity);
+    if (db->records == NULL)
+    {
+        printf("Failed to allocate memory for records!\n");
+        free(db);
+        return NULL;
+    }
 
-// Main menu and orchestration
-int main(void) {
-    Person database[100];
-    int count = 0;
-    int choice;
+    db->count = 0;
+    db->capacity = initial_capacity;
 
-    // Load existing database
-    count = load_database("people.txt", database);
+    return db;
+}
 
-    while (1) {
-        show_menu();
+void db_free(Database *db)
+{
+    if (db != NULL)
+    {
+        free(db->records);
+        free(db);
+    }
+}
 
-        if (scanf("%d", &choice) != 1) {
-            printf("Invalid input. Try again.\n");
-            while (getchar() != '\n');  // Clear buffer
-            continue;
-        }
+// Resize database: grow capacity when needed
+int resize_database(Database *db, int new_capacity)
+{
+    if (new_capacity <= db->capacity)
+    {
+        printf("Error: cannot shrink below %d records!\n", db->capacity);
+        return 0;
+    }
 
-        getchar();  // Clear newline from buffer after scanf
+    Person *new_records = realloc(db->records, sizeof(Person) * new_capacity);
+    if (new_records == NULL)
+    {
+        printf("Memory allocation failed! Keeping old size.\n");
+        return 0;
+    }
 
-        if (choice == 1) {
-            add_person(database, &count);
-        } else if (choice == 2) {
-            display_database(database, count);
-        } else if (choice == 3) {
-            save_database("people.txt", database, count);
-        } else if (choice == 4) {
-            printf("Goodbye!\n");
-            break;
-        } else {
-            printf("Invalid choice. Try again.\n");
+    db->records = new_records;
+    db->capacity = new_capacity;
+    printf("Database resized to %d records.\n", new_capacity);
+    return 1;
+}
+
+// Add a record to the database with automatic resizing
+int db_add_record(Database *db, Person record)
+{
+    // Check if we need to resize
+    if (db->count >= db->capacity)
+    {
+        int new_capacity = db->capacity * 2; // Grow by 2x
+        if (!resize_database(db, new_capacity))
+        {
+            printf("Failed to add record: out of memory\n");
+            return 0;
         }
     }
 
-    return 0;
+    // Add the record
+    db->records[db->count++] = record;
+    printf("Record added successfully. Database has %d/%d records.\n", db->count, db->capacity);
+    return 1;
 }
 
-void show_menu(void) {
-    printf("\n=== Database Menu ===\n");
-    printf("1. Add a person\n");
-    printf("2. View all records\n");
-    printf("3. Save database\n");
-    printf("4. Quit\n");
-    printf("Selection: ");
-}
-
-void add_person(Person *people, int *count) {
-    if (*count >= 100) {
-        printf("Database is full!\n");
-        return;
-    }
-
-    Person new_person;
-    new_person.id = *count + 1;  // Next ID is count + 1
-
-    // Get name
-    printf("Enter name: ");
-    fgets(new_person.name, sizeof(new_person.name), stdin);
-    // Remove newline from fgets (it includes it)
-    new_person.name[strcspn(new_person.name, "\n")] = '\0';
-
-    // Get age
-    printf("Enter age: ");
-    scanf("%d", &new_person.age);
-
-    // Get salary
-    printf("Enter salary: ");
-    scanf("%lf", &new_person.salary);
-    getchar(); // Clear newline from scanf
-
-    // Add to database
-    people[*count] = new_person;
-    (*count)++;
-
-    printf("Person added successfully!\n");
-}
-
-void display_database(Person *people, int count) {
-    if (count == 0) {
-        printf("\nDatabase is empty.\n");
+// Display all records in formatted table
+void db_display(Database *db)
+{
+    if (db->count == 0)
+    {
+        printf("Database is empty.\n");
         return;
     }
 
     printf("\n");
     printf("┌────┬──────────────┬─────┬──────────┐\n");
-    printf("│ ID │ Name         │ Age │  Salary  │\n");
+    printf("│ ID │ Name         │ Age │ Salary   │\n");
     printf("├────┼──────────────┼─────┼──────────┤\n");
 
-    for (int i = 0; i < count; i++) {
-        printf("│ %2d │ %-12s │ %3d │ %8.2f │\n",
-            people[i].id,
-            people[i].name,
-            people[i].age,
-            people[i].salary);
+    for (int i = 0; i < db->count; i++)
+    {
+        printf("│ %-2d │ %-12s │ %3d │ %8.2f │\n",
+               db->records[i].id,
+               db->records[i].name,
+               db->records[i].age,
+               db->records[i].salary);
     }
-
     printf("└────┴──────────────┴─────┴──────────┘\n");
-    printf("Total records: %d\n\n", count);
 }
 
-void save_database(const char *filename, Person *people, int count) {
-    FILE *file = fopen(filename, "w");
-    if (file == NULL) {
-        perror("Error opening file for writing");
-        return;
-    }
-
-    // Write header
-    fprintf(file, "ID,Name,Age,Salary\n");
-
-    // Write each record
-    for (int i = 0; i < count; i++) {
-        fprintf(file, "%d,%s,%d,%.2f\n",
-            people[i].id,
-            people[i].name,
-            people[i].age,
-            people[i].salary);
-    }
-
-    fclose(file);
-    printf("Database saved to %s\n", filename);
-}
-
-int load_database(const char *filename, Person *people) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        printf("No existing database file. Starting fresh.\n");
-        return 0;
-    }
-
-    char line[1024];
-    int count = 0;
-
-    // Skip header line
-    fgets(line, sizeof(line), file);
-
-    // Read each line
-    while (fgets(line, sizeof(line), file) != NULL && count < 100) {
-        // Parse: "1, Alice, 30, 50000.00"
-        sscanf(line, "%d,%99[^,],%d,%lf",
-            &people[count].id,
-            people[count].name,
-            &people[count].age,
-            &people[count].salary);
-        
-        count++;
-    }
-
-    fclose(file);
-    printf("Loaded %d records from %s\n", count, filename);
-    return count;
+// Report memory usage statistics
+void db_memory_stats(Database *db)
+{
+    printf("\n=== Database Memory Stats ===\n");
+    printf("Records in use (count):    %d\n", db->count);
+    printf("Space allocated (capacity): %d\n", db->capacity);
+    printf("Bytes per record:          %zu\n", sizeof(Person));
+    printf("Total allocated:           %ld bytes (%.2f KB)\n",
+           (long)(db->capacity * sizeof(Person)),
+           (db->capacity * sizeof(Person)) / 1024.0);
+    printf("Actual data:               %ld bytes (%.2f KB)\n",
+           (long)(db->count * sizeof(Person)),
+           (db->count * sizeof(Person)) / 1024.0);
+    printf("Unused space:              %ld bytes (%.1f%%)\n",
+           (long)((db->capacity - db->count) * sizeof(Person)),
+           100.0 * (db->capacity - db->count) / db->capacity);
+    printf("Load factor:               %.1f%%\n",
+           100.0 * db->count / db->capacity);
+    printf("==============================\n\n");
 }
