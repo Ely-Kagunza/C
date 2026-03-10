@@ -53,6 +53,8 @@ void db_sort_by_salary_desc(Database *db);
 void db_sort_by_id(Database *db);
 void compare_search_performance(Database *db);
 void db_display(Database *db);
+void db_memory_stats(Database *db);
+int db_add_record(Database *db, Person record);
 
 int main(void) {
     // Load database into array (Phase 4 approach)
@@ -176,8 +178,33 @@ int main(void) {
         } else if (choice == 10) {
             compare_search_performance(db);
         } else if (choice == 11) {
+            // Add new record
+            Person new_person = {0};
+            new_person.id = db->count + 1;
+            
+            printf("Enter name: ");
+            fgets(new_person.name, sizeof(new_person.name), stdin);
+            new_person.name[strcspn(new_person.name, "\n")] = '\0';
+            
+            printf("Enter age: ");
+            scanf("%d", &new_person.age);
+            
+            printf("Enter salary: ");
+            scanf("%lf", &new_person.salary);
+            getchar();
+            
+            if (db_add_record(db, new_person)) {
+                printf("Record added successfully!\n");
+                db_memory_stats(db);
+            }
+        } else if (choice == 12) {
+            // Show memory stats
+            db_memory_stats(db);
+            
+        } else if (choice == 13) {
             printf("Goodbye!\n");
             break;
+         
         } else {
             printf("Invalid choice. Try again.\n");
         }
@@ -201,7 +228,9 @@ void show_menu(void) {
     printf("8. Compare two records\n");
     printf("9. Sort by ID\n");
     printf("10. Compare search performance\n");
-    printf("11. Quit\n");
+    printf("11. Add new record\n");
+    printf("12. Show memory stats\n");
+    printf("13. Quit\n");
     printf("Selection: ");
 }
 
@@ -506,6 +535,42 @@ Database* db_create(int initial_capacity) {
     return db;
 }
 
+// Resize database: grow capacity when needed
+int resize_database(Database *db, int new_capacity) {
+    if (new_capacity <= db->capacity) {
+        printf("Error: cannot shrink below %d records!\n", db->capacity);
+        return 0;
+    }
+
+    Person *new_records = realloc(db->records, sizeof(Person) * new_capacity);
+    if (new_records == NULL) {
+        printf("Memory allocation failed! Keeping old size.\n");
+        return 0;
+    }
+
+    db->records = new_records;
+    db->capacity = new_capacity;
+    printf("Database resized to %d records.\n", new_capacity);
+    return 1;
+}
+
+// Add a record to the database
+int db_add_record(Database *db, Person record) {
+    // Check if we need to resize
+    if (db->count >= db->capacity) {
+        int new_capacity = db->capacity * 2;  // Grow by 2x
+        if (!resize_database(db, new_capacity)) {
+            printf("failed to add record: out of memory\n");
+            return 0;
+        }
+    }
+
+    // Add the record
+    db->records[db->count++] = record;
+    printf("Record added successfully. File now has %d/%d records.\n", db->count, db->capacity);
+    return 1;
+}
+
 // Load database from binary file into memory array
 Database* db_load_from_file(const char *filename) {
     FILE *file = fopen(filename, "rb");
@@ -716,4 +781,24 @@ void db_display(Database *db) {
             db->records[i].salary);
     }
     printf("└────┴──────────────┴─────┴──────────┘\n");
+}
+
+// Report memory usage
+void db_memory_stats(Database *db) {
+    printf("\n=== Database Memory Stats ===\n");
+    printf("Records in use (count):    %d\n", db->count);
+    printf("Space allocated (capacity): %d\n", db->capacity);
+    printf("Bytes per record:          %zu\n", sizeof(Person));
+    printf("Total allocated:           %ld bytes (%.2f KB)\n", 
+           (long)(db->capacity * sizeof(Person)),
+           (db->capacity * sizeof(Person)) / 1024.0);
+    printf("Actual data:               %ld bytes (%.2f KB)\n",
+           (long)(db->count * sizeof(Person)),
+           (db->count * sizeof(Person)) / 1024.0);
+    printf("Unused space:              %ld bytes (%.1f%%)\n",
+           (long)((db->capacity - db->count) * sizeof(Person)),
+           100.0 * (db->capacity - db->count) / db->capacity);
+    printf("Load factor:               %.1f%%\n", 
+           100.0 * db->count / db->capacity);
+    printf("==============================\n\n");
 }
