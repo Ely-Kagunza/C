@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "io.h"
+#include "hash.h"
 
 // Load database from binary file into memory array
 Database *db_load_from_file(const char *filename)
@@ -34,7 +34,7 @@ Database *db_load_from_file(const char *filename)
   int capacity = header.record_count + (header.record_count / 10) + 1;
   Database *db = db_create(capacity);
 
-  // Read all records into array
+  // Read all records into array and hash table
   for (int i = 0; i < header.record_count; i++)
   {
     Person person;
@@ -44,6 +44,8 @@ Database *db_load_from_file(const char *filename)
       break;
     }
     db->records[db->count++] = person;
+
+    hash_insert(db->id_index, person.id, person);
   }
 
   fclose(file);

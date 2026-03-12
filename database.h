@@ -2,6 +2,15 @@
 #define DATABASE_H
 
 #include "person.h"
+#include "hash.h"
+
+// Database structure for in-memory storage
+typedef struct {
+  Person *records;
+  int count;
+  int capacity;
+  HashTable *id_index;
+} Database;
 
 // Core database operations
 Database *db_create(int initial_capacity);
@@ -10,5 +19,8 @@ int db_add_record(Database *db, Person record);
 int resize_database(Database *db, int new_capacity);
 void db_display(Database *db);
 void db_memory_stats(Database *db);
+
+// Hash table lookup (Phase 7)
+Person *db_get_by_id(Database *db, int id);
 
 #endif

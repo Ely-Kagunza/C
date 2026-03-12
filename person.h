@@ -10,14 +10,6 @@ typedef struct
     double salary;
 } Person;
 
-// Database structure for in-memory storage
-typedef struct
-{
-    Person *records; // Pointer to array of Person structs
-    int count;       // Current number of records
-    int capacity;    // Space allocated for records
-} Database;
-
 // Header for binary file format
 typedef struct
 {

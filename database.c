@@ -23,6 +23,16 @@ Database *db_create(int initial_capacity)
     db->count = 0;
     db->capacity = initial_capacity;
 
+    // Create hash table for O(1) lookup by ID
+    db->id_index = hash_create(initial_capacity);
+    if (db->id_index == NULL)
+    {
+        printf("Failed to create ID index hash table!\n");
+        free(db->records);
+        free(db);
+        return NULL;
+    }
+
     return db;
 }
 
@@ -31,6 +41,7 @@ void db_free(Database *db)
     if (db != NULL)
     {
         free(db->records);
+        hash_free(db->id_index);
         free(db);
     }
 }
@@ -73,8 +84,21 @@ int db_add_record(Database *db, Person record)
 
     // Add the record
     db->records[db->count++] = record;
+
+    // Also add to hash index for O(1) lookup by ID
+    hash_insert(db->id_index, record.id, record);
+
     printf("Record added successfully. Database has %d/%d records.\n", db->count, db->capacity);
     return 1;
+}
+
+// Lookup a record by ID using the hash index (Phase 7)
+Person *db_get_by_id(Database *db, int id)
+{
+    if (db == NULL)
+        return NULL;
+
+    return hash_lookup(db->id_index, id);
 }
 
 // Display all records in formatted table
