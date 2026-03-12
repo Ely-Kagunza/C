@@ -5,6 +5,7 @@
 #include "io.h"
 #include "query.h"
 #include <time.h>
+#include "cli.h"
 
 void show_menu(void)
 {
@@ -30,67 +31,66 @@ void show_menu(void)
 // Test Phase 7: Hash table performance and functionality
 void test_hash_table(Database *db)
 {
-    printf("\n=== Phase 7: Hash Table Testing ===\n\n");
+  printf("\n=== Phase 7: Hash Table Testing ===\n\n");
 
-    // Test 1: Basic Lookup
-    printf("TEST 1: Direct Hash Lookup (O(1))\n");
-    printf("Looking for ID 1...\n");
-    Person *found = db_get_by_id(db, 1);
-    if (found != NULL)
-    {
-        printf("✓ Found: %s, Age=%d, Salary=%.2f\n\n", found->name, found->age, found->salary);
-    }
+  // Test 1: Basic Lookup
+  printf("TEST 1: Direct Hash Lookup (O(1))\n");
+  printf("Looking for ID 1...\n");
+  Person *found = db_get_by_id(db, 1);
+  if (found != NULL)
+  {
+    printf("✓ Found: %s, Age=%d, Salary=%.2f\n\n", found->name, found->age, found->salary);
+  }
+  else
+  {
+    printf("✗ Not found.\n\n");
+  }
+
+  // Test 2: Multiple lookups
+  printf("TEST 2: Multiple Random Lookups\n");
+  int test_ids[] = {1, 5, 3, 7, 2};
+  for (int i = 0; i < 5; i++)
+  {
+    Person *p = db_get_by_id(db, test_ids[i]);
+    if (p != NULL)
+      printf("  ID %d: %s\n", test_ids[i], p->name);
     else
-    {
-        printf("✗ Not found.\n\n");
-    }
+      printf("  ID %d: Not found\n", test_ids[i]);
+  }
+  printf("\n");
 
-    // Test 2: Multiple lookups
-    printf("TEST 2: Multiple Random Lookups\n");
-    int test_ids[] = {1, 5, 3, 7, 2};
-    for (int i = 0; i < 5; i++)
-    {
-        Person *p = db_get_by_id(db, test_ids[i]);
-        if (p != NULL)
-            printf("  ID %d: %s\n", test_ids[i], p->name);
-        else
-            printf("  ID %d: Not found\n", test_ids[i]);
-    }
+  // Test 3: Hash table statistics
+  printf("TEST 3: Hash Table Statistics\n");
+  hash_display_stats(db->id_index);
+
+  // Test 4: Performance comparison
+  printf("TEST 4: Performance Comparison (Binary vs Hash)\n");
+  if (db->count >= 1)
+  {
+    int target_id = db->records[db->count / 2].id;
+    printf("Searching for ID %d in %d records...\n\n", target_id, db->count);
+
+    // Binary search (requires sorting)
+    clock_t start_binary = clock();
+    int binary_result = db_binary_search_by_id(db, target_id);
+    clock_t end_binary = clock();
+    double binary_time = ((double)(end_binary - start_binary)) / CLOCKS_PER_SEC * 1000000;
+
+    // Hash lookup (O(1))
+    clock_t start_hash = clock();
+    Person *hash_result = db_get_by_id(db, target_id);
+    clock_t end_hash = clock();
+    double hash_time = ((double)(end_hash - start_hash)) / CLOCKS_PER_SEC * 1000000;
+
+    printf("Binary Search:  %.4f microseconds\n", binary_time);
+    printf("Hash Lookup:    %.4f microseconds\n", hash_time);
+    if (hash_time > 0)
+      printf("Hash is %.1fx faster\n", binary_time / hash_time);
     printf("\n");
-
-    // Test 3: Hash table statistics
-    printf("TEST 3: Hash Table Statistics\n");
-    hash_display_stats(db->id_index);
-
-    // Test 4: Performance comparison
-    printf("TEST 4: Performance Comparison (Binary vs Hash)\n");
-    if (db->count >= 1)
-    {
-        int target_id = db->records[db->count / 2].id;
-        printf("Searching for ID %d in %d records...\n\n", target_id, db->count);
-
-        // Binary search (requires sorting)
-        clock_t start_binary = clock();
-        int binary_result = db_binary_search_by_id(db, target_id);
-        clock_t end_binary = clock();
-        double binary_time = ((double)(end_binary - start_binary)) / CLOCKS_PER_SEC * 1000000;
-
-        // Hash lookup (O(1))
-        clock_t start_hash = clock();
-        Person *hash_result = db_get_by_id(db, target_id);
-        clock_t end_hash = clock();
-        double hash_time = ((double)(end_hash - start_hash)) / CLOCKS_PER_SEC * 1000000;
-
-        printf("Binary Search:  %.4f microseconds\n", binary_time);
-        printf("Hash Lookup:    %.4f microseconds\n", hash_time);
-        if (hash_time > 0)
-            printf("Hash is %.1fx faster\n", binary_time / hash_time);
-        printf("\n");
-    }
+  }
 }
 
-
-int main(void)
+int main(int argc, char *argv[])
 {
   // Load database from file
   Database *db = db_load_from_file("people.db");
@@ -101,6 +101,18 @@ int main(void)
     return 1;
   }
 
+  // Phase 8: Route by argc
+  // If argc == 1 (no arguments), run interactive mode
+  // If argc > 1 (arguments provided), run CLI mode
+  if (argc > 1)
+  {
+    // CLI mode: Parse command and dispatch
+    run_cli_mode(argc, argv, db);
+    db_free(db);
+    return 0;
+  }
+
+  // Interactive mode: Run menu loop
   int choice;
 
   while (1)
