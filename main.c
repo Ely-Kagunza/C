@@ -7,6 +7,7 @@
 #include <time.h>
 #include "cli.h"
 #include "btree.h"
+#include "batch.h"
 
 void show_menu(void)
 {
@@ -26,7 +27,8 @@ void show_menu(void)
   printf("13. Test hash table\n");
   printf("14. Test B-tree\n");
   printf("15. Test query cache\n");
-  printf("16. Quit\n");
+  printf("16. Test Batch Operations\n");
+  printf("17. Quit\n");
   printf("Selection: ");
 }
 
@@ -230,6 +232,54 @@ void test_query_cache(Database *db)
     cache_display_stats(db->query_cache);
 }
 
+// Test Phase 9: Batch operations
+void test_batch_operations(Database *db)
+{
+    printf("\n=== Phase 9: Batch Operations Testing ===\n\n");
+
+    // TEST 1: Create batch
+    printf("TEST 1: Queue records in batch\n");
+    Batch *batch = batch_create(100);
+
+    // Create fake records to add
+    Person test_records[] = {
+        {101, "Alice", 25, 50000},
+        {102, "Bob", 28, 55000},
+        {103, "Charlie", 32, 60000},
+        {104, "Diana", 29, 58000},
+        {105, "Eve", 31, 62000}
+    };
+
+    // Add to batch
+    for (int i = 0; i < 5; i++)
+    {
+        batch_add(batch, test_records[i]);
+    }
+
+    batch_display_stats(batch);
+
+    // TEST 2: Execute batch
+    printf("TEST 2: Execute batch insert\n");
+    int inserted = batch_execute(db, batch);
+    printf("Successfully inserted %d records\n\n", inserted);
+
+    // TEST 3: Verify records were inserted
+    printf("TEST 3: Verify inserted records\n");
+    Person *found = db_get_by_id(db, 101);
+    if (found != NULL)
+    {
+        printf("✓ Alice (ID 101) found: Age %d, Salary %.2f\n", found->age, found->salary);
+    }
+    else
+    {
+        printf("✗ Alice not found\n");
+    }
+
+    printf("\nDatabase now contains %d records\n\n", db->count);
+
+    batch_free(batch);
+}
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -425,6 +475,10 @@ int main(int argc, char *argv[])
       test_query_cache(db);
     }
     else if (choice == 16)
+    {
+      test_batch_operations(db);
+    }
+    else if (choice == 17)
     {
       printf("Goodbye!\n");
       break;
