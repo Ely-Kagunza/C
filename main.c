@@ -8,6 +8,8 @@
 #include "cli.h"
 #include "btree.h"
 #include "batch.h"
+#include "threads.h"
+#include <windows.h>
 
 void show_menu(void)
 {
@@ -28,7 +30,8 @@ void show_menu(void)
   printf("14. Test B-tree\n");
   printf("15. Test query cache\n");
   printf("16. Test Batch Operations\n");
-  printf("17. Quit\n");
+  printf("17. Test Threading\n");
+  printf("18. Quit\n");
   printf("Selection: ");
 }
 
@@ -280,6 +283,89 @@ void test_batch_operations(Database *db)
     batch_free(batch);
 }
 
+// Test Phase 9: Threading for concurrent access
+void test_threading(Database *db)
+{
+    printf("\n=== Phase 9: Threading (Concurrent Access) ===\n\n");
+
+    // Create thread-safe database wrapper
+    ThreadSafeDatabase *tsdb = threadsafe_db_create(db);
+    if (tsdb == NULL)
+    {
+        printf("Failed to create thread-safe database\n");
+        return;
+    }
+
+    // TEST 1: Single-threaded baseline
+    printf("TEST 1: Single-threaded baseline\n");
+    Person *found = threadsafe_get_by_id(tsdb, 102);
+    if (found != NULL)
+        printf("✓ Found ID 102: %s\n\n", found->name);
+    else
+        printf("✗ ID 102 not found\n\n");
+
+    // TEST 2: Multi-threaded concurrent searches
+    printf("TEST 2: 5 concurrent threads searching simultaneously\n");
+    HANDLE threads[5];  // Windows thread handles
+    ThreadSearchTask tasks[5];
+    int search_ids[] = {1, 2, 1, 2, 1};
+
+    // Create worker threads
+    for (int i = 0; i < 5; i++)
+    {
+        tasks[i].thread_id = i;
+        tasks[i].tsdb = tsdb;
+        tasks[i].search_id = search_ids[i];
+        tasks[i].result = NULL;
+
+        threads[i] = CreateThread(
+            NULL,                      // Default security attributes
+            0,                         // Default stack size
+            worker_search_thread,      // Thread function
+            &tasks[i],                 // Thread argument
+            0,                         // Creation flags
+            NULL                       // Thread ID (not needed)
+        );
+
+        if (threads[i] == NULL)
+        {
+            printf("Failed to create thread %d\n", i);
+            return;
+        }
+    }
+
+    // Wait for all threads to finish
+    printf("\nWaiting for threads to complete...\n");
+    WaitForMultipleObjects(5, threads, TRUE, INFINITE);
+
+    // Collect results
+    printf("\nResults from all threads:\n");
+    for (int i = 0; i < 5; i++)
+    {
+        if (tasks[i].result != NULL)
+            printf("  Thread %d: Found %s\n", i, tasks[i].result->name);
+        else
+            printf("  Thread %d: Not found\n", i);
+    }
+    printf("\n");
+
+    // Close thread handles
+    for (int i = 0; i < 5; i++)
+    {
+        CloseHandle(threads[i]);
+    }
+
+    // TEST 3: Demonstrate critical section protection
+    printf("TEST 3: Why critical sections matter\n");
+    printf("WITHOUT critical section: Threads could corrupt data\n");
+    printf("WITH critical section: Only one thread accesses database at a time\n");
+    printf("  - Prevents data corruption\n");
+    printf("  - Ensures consistency\n");
+    printf("  - Small performance cost for safety\n\n");
+
+    threadsafe_db_free(tsdb);
+}
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -479,6 +565,10 @@ int main(int argc, char *argv[])
       test_batch_operations(db);
     }
     else if (choice == 17)
+    {
+      test_threading(db);
+    }
+    else if (choice == 18)
     {
       printf("Goodbye!\n");
       break;
