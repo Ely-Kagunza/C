@@ -33,6 +33,17 @@ Database *db_create(int initial_capacity)
         return NULL;
     }
 
+    // Create query cache (Phase 9)
+    db->query_cache = cache_create(10);  // Cache up to 10 queries
+    if (db->query_cache == NULL)
+    {
+        printf("Failed to create query cache!\n");
+        hash_free(db->id_index);
+        free(db->records);
+        free(db);
+        return NULL;
+    }
+
     return db;
 }
 
@@ -42,6 +53,7 @@ void db_free(Database *db)
     {
         free(db->records);
         hash_free(db->id_index);
+        cache_free(db->query_cache);
         free(db);
     }
 }
@@ -87,6 +99,9 @@ int db_add_record(Database *db, Person record)
 
     // Also add to hash index for O(1) lookup by ID
     hash_insert(db->id_index, record.id, record);
+
+    // Invalidate cache when DB changes
+    cache_invalidate(db->query_cache);
 
     printf("Record added successfully. Database has %d/%d records.\n", db->count, db->capacity);
     return 1;

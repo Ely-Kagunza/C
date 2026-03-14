@@ -3,6 +3,7 @@
 
 #include "person.h"
 #include "hash.h"
+#include "cache.h"
 
 // Database structure for in-memory storage
 typedef struct {
@@ -10,6 +11,7 @@ typedef struct {
   int count;
   int capacity;
   HashTable *id_index;
+  QueryCache *query_cache;
 } Database;
 
 // Core database operations

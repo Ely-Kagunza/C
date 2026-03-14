@@ -6,6 +6,7 @@
 #include "query.h"
 #include <time.h>
 #include "cli.h"
+#include "btree.h"
 
 void show_menu(void)
 {
@@ -23,7 +24,9 @@ void show_menu(void)
   printf("11. Add new record\n");
   printf("12. Show memory stats\n");
   printf("13. Test hash table\n");
-  printf("14. Quit\n");
+  printf("14. Test B-tree\n");
+  printf("15. Test query cache\n");
+  printf("16. Quit\n");
   printf("Selection: ");
 }
 
@@ -88,6 +91,143 @@ void test_hash_table(Database *db)
       printf("Hash is %.1fx faster\n", binary_time / hash_time);
     printf("\n");
   }
+}
+
+
+// Test Phase 9: B-Tree range queries
+void test_btree(Database *db)
+{
+    printf("\n=== Phase 9: B-Tree Testing ===\n\n");
+
+    // Create B-tree indexed by age
+    BTree *age_index = btree_create(3);
+    if (age_index == NULL)
+    {
+        printf("Failed to create B-tree\n");
+        return;
+    }
+
+    // Insert all records into B-tree (indexed by age)
+    printf("Building B-tree index by age...\n");
+    for (int i = 0; i < db->count; i++)
+    {
+        btree_insert(age_index, db->records[i].age, &db->records[i]);
+    }
+    btree_display_stats(age_index);
+
+    // TEST 1: Exact search
+    printf("TEST 1: Exact Age Search\n");
+    Person *found = btree_search(age_index, 30);
+    if (found != NULL)
+        printf("✓ Found person age 30: %s\n\n", found->name);
+    else
+        printf("✗ No person with age 30\n\n");
+
+    // TEST 2: Range search
+    printf("TEST 2: Range Search (Age 25-35)\n");
+    Person **range_results = malloc(sizeof(Person *) * db->count);
+    if (range_results == NULL)
+    {
+        printf("Memory allocation failed\n");
+        btree_free(age_index);
+        return;
+    }
+
+    int range_count = btree_range_search(age_index, 25, 35, range_results);
+    printf("Found %d people between age 25 and 35:\n", range_count);
+    for (int i = 0; i < range_count; i++)
+    {
+        printf("  - %s, Age %d\n", range_results[i]->name, range_results[i]->age);
+    }
+    printf("\n");
+
+    // TEST 3: Different range
+    printf("TEST 3: Range Search (Age 20-28)\n");
+    range_count = btree_range_search(age_index, 20, 28, range_results);
+    printf("Found %d people between age 20 and 28:\n", range_count);
+    for (int i = 0; i < range_count; i++)
+    {
+        printf("  - %s, Age %d\n", range_results[i]->name, range_results[i]->age);
+    }
+    printf("\n");
+
+    free(range_results);
+    btree_free(age_index);
+}
+
+// Test Phase 9: Query cache
+void test_query_cache(Database *db)
+{
+    printf("\n=== Phase 9: Query Cache Testing ===\n\n");
+
+    // Simulate filtering by age (without B-tree, just for demo)
+    printf("TEST 1: Cache the same query twice\n");
+
+    // First query: "age 25-35"
+    char query1[256];
+    sprintf(query1, "age:25-35");
+
+    // Check cache (should miss)
+    CachedQuery *cached = cache_lookup(db->query_cache, query1);
+    if (cached == NULL)
+    {
+        printf("Building results for: %s\n", query1);
+        Person **results = malloc(sizeof(Person *) * db->count);
+        int count = 0;
+
+        // Simulate query execution
+        for (int i = 0; i < db->count; i++)
+        {
+            if (db->records[i].age >= 25 && db->records[i].age <= 35)
+                results[count++] = &db->records[i];
+        }
+
+        // Cache the results
+        cache_insert(db->query_cache, query1, results, count);
+
+        printf("Results found: %d\n\n", count);
+        free(results);
+    }
+
+    // Second query: same "age 25-35" (should hit cache!)
+    printf("TEST 2: Same query again (should hit cache)\n");
+    cached = cache_lookup(db->query_cache, query1);
+    if (cached != NULL)
+    {
+        printf("Retrieved from cache: %d results\n", cached->result_count);
+        for (int i = 0; i < cached->result_count; i++)
+        {
+            printf("  - %s, Age %d\n", cached->results[i]->name, cached->results[i]->age);
+        }
+    }
+    printf("\n");
+
+    // Different query
+    printf("TEST 3: Different query\n");
+    char query2[256];
+    sprintf(query2, "age:20-28");
+
+    cached = cache_lookup(db->query_cache, query2);
+    if (cached == NULL)
+    {
+        printf("Building results for: %s\n", query2);
+        Person **results = malloc(sizeof(Person *) * db->count);
+        int count = 0;
+
+        for (int i = 0; i < db->count; i++)
+        {
+            if (db->records[i].age >= 20 && db->records[i].age <= 28)
+                results[count++] = &db->records[i];
+        }
+
+        cache_insert(db->query_cache, query2, results, count);
+        printf("Results found: %d\n\n", count);
+        free(results);
+    }
+
+    // Show cache stats
+    printf("TEST 4: Cache Statistics\n");
+    cache_display_stats(db->query_cache);
 }
 
 int main(int argc, char *argv[])
@@ -277,6 +417,14 @@ int main(int argc, char *argv[])
       test_hash_table(db);
     }
     else if (choice == 14)
+    {
+      test_btree(db);
+    }
+    else if (choice == 15)
+    {
+      test_query_cache(db);
+    }
+    else if (choice == 16)
     {
       printf("Goodbye!\n");
       break;
