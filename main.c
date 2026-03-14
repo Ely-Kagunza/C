@@ -102,62 +102,62 @@ void test_hash_table(Database *db)
 // Test Phase 9: B-Tree range queries
 void test_btree(Database *db)
 {
-    printf("\n=== Phase 9: B-Tree Testing ===\n\n");
+    printf("\n=== Phase 9: B-Tree with Node Splitting ===\n\n");
 
-    // Create B-tree indexed by age
-    BTree *age_index = btree_create(3);
-    if (age_index == NULL)
+    BTree *bt = btree_create(3);  // Order 3: max 5 keys per node
+    if (bt == NULL)
     {
         printf("Failed to create B-tree\n");
         return;
     }
 
-    // Insert all records into B-tree (indexed by age)
-    printf("Building B-tree index by age...\n");
-    for (int i = 0; i < db->count; i++)
-    {
-        btree_insert(age_index, db->records[i].age, &db->records[i]);
-    }
-    btree_display_stats(age_index);
+    // TEST 1: Insert enough to cause splits
+    printf("TEST 1: Inserting 10 records (will trigger splits)\n");
+    printf("Order 3 = max 5 keys per node, so splits happen at 6th insert\n\n");
 
-    // TEST 1: Exact search
-    printf("TEST 1: Exact Age Search\n");
-    Person *found = btree_search(age_index, 30);
+    Person test_people[] = {
+        {1, "Alice", 25, 50000},
+        {2, "Bob", 28, 55000},
+        {3, "Charlie", 32, 60000},
+        {4, "Diana", 29, 58000},
+        {5, "Eve", 31, 62000},
+        {6, "Frank", 26, 52000},  // This will trigger first split
+        {7, "Grace", 34, 65000},
+        {8, "Henry", 27, 54000},
+        {9, "Iris", 33, 63000},
+        {10, "Jack", 30, 59000}
+    };
+
+    for (int i = 0; i < 10; i++)
+    {
+        printf("Inserting: %s (ID %d, Age %d)\n", test_people[i].name, test_people[i].id, test_people[i].age);
+        btree_insert(bt, test_people[i].age, &test_people[i]);
+    }
+
+    btree_display_stats(bt);
+
+    // TEST 2: Range search on newly built tree
+    printf("TEST 2: Range search (Age 25-32)\n");
+    Person **results = malloc(sizeof(Person *) * 100);
+    int count = btree_range_search(bt, 25, 32, results);
+
+    printf("Found %d people:\n", count);
+    for (int i = 0; i < count; i++)
+    {
+        printf("  - %s (Age %d)\n", results[i]->name, results[i]->age);
+    }
+    printf("\n");
+
+    // TEST 3: Exact search
+    printf("TEST 3: Exact search (Age 29)\n");
+    Person *found = btree_search(bt, 29);
     if (found != NULL)
-        printf("✓ Found person age 30: %s\n\n", found->name);
-    else
-        printf("✗ No person with age 30\n\n");
-
-    // TEST 2: Range search
-    printf("TEST 2: Range Search (Age 25-35)\n");
-    Person **range_results = malloc(sizeof(Person *) * db->count);
-    if (range_results == NULL)
     {
-        printf("Memory allocation failed\n");
-        btree_free(age_index);
-        return;
+        printf("Found: %s (Age 29)\n\n", found->name);
     }
 
-    int range_count = btree_range_search(age_index, 25, 35, range_results);
-    printf("Found %d people between age 25 and 35:\n", range_count);
-    for (int i = 0; i < range_count; i++)
-    {
-        printf("  - %s, Age %d\n", range_results[i]->name, range_results[i]->age);
-    }
-    printf("\n");
-
-    // TEST 3: Different range
-    printf("TEST 3: Range Search (Age 20-28)\n");
-    range_count = btree_range_search(age_index, 20, 28, range_results);
-    printf("Found %d people between age 20 and 28:\n", range_count);
-    for (int i = 0; i < range_count; i++)
-    {
-        printf("  - %s, Age %d\n", range_results[i]->name, range_results[i]->age);
-    }
-    printf("\n");
-
-    free(range_results);
-    btree_free(age_index);
+    free(results);
+    btree_free(bt);
 }
 
 // Test Phase 9: Query cache
