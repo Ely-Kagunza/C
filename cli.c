@@ -2,7 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cli.h"
+#include "cache.h"
 #include "database.h"
+#include "btree.h"
+#include "batch.h"
+#include "threads.h"
 
 // ============================================================================
 // COMMAND PARSER - Determine what command user requested
@@ -33,6 +37,14 @@ CommandType parse_command(int argc, char *argv[])
         return CMD_EXPORT;
     else if (strcmp(cmd, "help") == 0 || strcmp(cmd, "--help") == 0)
         return CMD_HELP;
+    else if (strcmp(cmd, "btree-range") == 0)
+        return CMD_BTREE_RANGE;
+    else if (strcmp(cmd, "cache-stats") == 0)
+        return CMD_CACHE_STATS;
+    else if (strcmp(cmd, "batch-insert") == 0)
+        return CMD_BATCH_INSERT;
+    else if (strcmp(cmd, "thread-test") == 0)
+        return CMD_THREAD_TEST;
     else
         return CMD_INVALID;
 }
@@ -70,6 +82,22 @@ void show_help(void)
     printf("    Example: ./database export --format csv --output results.txt\n\n");
 
     printf("  help                 Show this help message\n\n");
+
+    // ADD THESE PHASE 9 COMMANDS
+    printf("PHASE 9 COMMANDS:\n");
+    printf("  btree-range          B-tree range search\n");
+    printf("    --min <AGE>        Minimum age\n");
+    printf("    --max <AGE>        Maximum age\n");
+    printf("    Example: ./database btree-range --min 25 --max 35\n\n");
+
+    printf("  cache-stats          Show query cache statistics\n");
+    printf("    Example: ./database cache-stats\n\n");
+
+    printf("  batch-insert         Demo batch insert (5 records)\n");
+    printf("    Example: ./database batch-insert\n\n");
+
+    printf("  thread-test          Concurrent threading demo\n");
+    printf("    Example: ./database thread-test\n\n");
 
     printf("INTERACTIVE MODE:\n");
     printf("  ./database           Run interactive menu (no arguments)\n\n");
@@ -347,6 +375,198 @@ int handle_export(int argc, char *argv[], Database *db)
 }
 
 // ============================================================================
+// PHASE 9: B-TREE RANGE SEARCH
+// ============================================================================
+//
+// USAGE: database btree-range --min AGE --max AGE
+// EXAMPLE: database btree-range --min 25 --max 35
+// ============================================================================
+void handle_btree_range(int argc, char *argv[], Database *db)
+{
+    printf("\n=== B-TREE RANGE SEARCH ===\n");
+
+    int min_age = -1, max_age = -1;
+
+    // Parse --min and --max arguments
+    for (int i = 0; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--min") == 0 && i + 1 < argc)
+            min_age = atoi(argv[i + 1]);
+
+        if (strcmp(argv[i], "--max") == 0 && i + 1 < argc)
+            max_age = atoi(argv[i + 1]);
+    }
+
+    if (min_age == -1 || max_age == -1)
+    {
+        printf("Usage: database btree-range --min AGE --max AGE\n");
+        printf("Example: database btree-range --min 25 --max 35\n");
+        return;
+    }
+
+    // Create B-tree indexed by age
+    BTree *age_index = btree_create(3); // B-tree with 3 children per node
+    if (age_index == NULL)
+    {
+        printf("Failed to create B-tree index\n");
+        return;
+    }
+
+    printf("Building B-tree index...\n");
+    for (int i = 0; i < db->count; i++)
+    {
+        btree_insert(age_index, db->records[i].age, &db->records[i]);
+    }
+
+    // Search range
+    Person **results = malloc(db->count * sizeof(Person *));
+    if (results == NULL)
+    {
+        printf("Memory allocation failed\n");
+        btree_free(age_index);
+        return;
+    }
+
+    int count = btree_range_search(age_index, min_age, max_age, results);
+
+    printf("\nPeople aged %d-%d:\n", min_age, max_age);
+    printf("Found %d results (O(log n) range search)\n\n", count);
+
+    for (int i = 0; i < count; i++)
+    {
+        printf("  ID: %d | Name: %-15s | Age: %d | Salary: %.2f\n",
+               results[i]->id, results[i]->name, results[i]->age, results[i]->salary);
+    }
+    printf("\n");
+
+    free(results);
+    btree_free(age_index);
+}
+
+// ============================================================================
+// PHASE 9: QUERY CACHE STATISTICS
+// ============================================================================
+//
+// USAGE: database cache-stats
+// ============================================================================
+void handle_cache_stats(Database *db)
+{
+    printf("\n=== QUERY CACHE STATISTICS ===\n");
+
+    if (db->query_cache == NULL)
+    {
+        printf("Query cache not initialized\n");
+        return;
+    }
+
+    cache_display_stats(db->query_cache);
+}
+
+// ============================================================================
+// PHASE 9: BATCH INSERT DEMO
+// ============================================================================
+//
+// USAGE: database batch-insert
+// Creates a batch with 5 sample records and inserts them
+// ============================================================================
+void handle_batch_insert(Database *db)
+{
+    printf("\n=== BATCH INSERT DEMO ===\n\n");
+
+    Batch *batch = batch_create(100);
+    if (batch == NULL)
+    {
+        printf("Failed to create batch\n");
+        return;
+    }
+
+    // Create sample records
+    Person samples[] = {
+        {101, "Alice", 25, 50000.00},
+        {102, "Bob", 30, 60000.00},
+        {103, "Charlie", 35, 70000.00},
+        {104, "David", 40, 80000.00},
+        {105, "Eve", 45, 90000.00},
+    };
+
+    printf("Queueing 5 records in batch...\n");
+    for (int i = 0; i < 5; i++)
+    {
+        batch_add(batch, samples[i]);
+    }
+
+    batch_display_stats(batch);
+
+    int inserted = batch_execute(db, batch);
+    printf("Successfully inserted %d records\n", inserted);
+    printf("Database now has %d total records\n\n", db->count);
+
+    batch_free(batch);
+}
+
+// ============================================================================
+// PHASE 9: THREADING TEST
+// ============================================================================
+//
+// USAGE: database thread-test
+// Spawns 5 concurrent threads searching the database
+// ============================================================================
+void handle_thread_test(Database *db)
+{
+    printf("\n=== CONCURRENT THREADING TEST ===\n\n");
+
+    ThreadSafeDatabase *tsdb = threadsafe_db_create(db);
+    if (tsdb == NULL)
+    {
+        printf("Failed to create thread-safe database\n");
+        return;
+    }
+
+    printf("Spawning 5 concurrent search threads...\n");
+
+    HANDLE threads[5];
+    ThreadSearchTask tasks[5];
+    int search_ids[5] = {101, 102, 101, 102, 101};
+
+    // Create threads
+    for (int i = 0; i < 5; i++)
+    {
+        tasks[i].thread_id = i;
+        tasks[i].tsdb = tsdb;
+        tasks[i].search_id = search_ids[i];
+        tasks[i].result = NULL;
+
+        threads[i] = CreateThread(NULL, 0, worker_search_thread, &tasks[i], 0, NULL);
+        if (threads[i] == NULL)
+        {
+            printf("Failed to create thread %d\n", i);
+            return;
+        }
+    }
+
+    // Wait for all threads to complete
+    WaitForMultipleObjects(5, threads, TRUE, INFINITE);
+
+    printf("All threads completed\n");
+    for (int i = 0; i < 5; i++)
+    {
+        if (tasks[i].result != NULL)
+            printf("  Thread %d: Found %s\n", i, tasks[i].result->name);
+        else
+            printf("  Thread %d: Not found\n", i);
+    }
+    printf("\n");
+
+    // Cleanup
+    for (int i = 0; i < 5; i++)
+        CloseHandle(threads[i]);
+
+    threadsafe_db_free(tsdb);
+}
+          
+
+
+// ============================================================================
 // MAIN CLI DISPATCHER - Route commands to handlers
 // ============================================================================
 void run_cli_mode(int argc, char *argv[], Database *db)
@@ -367,11 +587,23 @@ void run_cli_mode(int argc, char *argv[], Database *db)
     case CMD_HELP:
         show_help();
         break;
+    case CMD_BTREE_RANGE:
+        handle_btree_range(argc, argv, db);
+        break;
+    case CMD_CACHE_STATS:
+        handle_cache_stats(db);
+        break;
+    case CMD_BATCH_INSERT:
+        handle_batch_insert(db);
+        break;
+    case CMD_THREAD_TEST:
+        handle_thread_test(db);
+        break;
     case CMD_INTERACTIVE:
         // This won't happen here, but for completeness
-        printf("Error: Shoul use interactive mode\n");
+        printf("Error: Should use interactive mode\n");
         break;
-        case CMD_INVALID:
+    case CMD_INVALID:
         printf("Error: Unknown command '%s'\n", argv[1]);
         printf("Use './database help' for usage information\n");
         break;

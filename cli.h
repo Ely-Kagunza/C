@@ -5,12 +5,16 @@
 
 // Command types
 typedef enum {
-    CMD_INVALID,
     CMD_QUERY,    // Query single record by ID or name
     CMD_FILTER,   // Filter records by criteria
     CMD_EXPORT,   // Export to file
     CMD_HELP,
-    CMD_INTERACTIVE
+    CMD_BTREE_RANGE, // B-tree range search
+    CMD_CACHE_STATS, // Query cache statistics
+    CMD_BATCH_INSERT, // Batch insert demo
+    CMD_THREAD_TEST, // Concurrent threading test
+    CMD_INTERACTIVE,
+    CMD_INVALID
 } CommandType;
 
 // Query criteria structure
@@ -48,5 +52,9 @@ void show_help(void);
 int handle_query(int argc, char *argv[], Database *db);
 int handle_filter(int argc, char *argv[], Database *db);
 int handle_export(int argc, char *argv[], Database *db);
+void handle_btree_range(int argc, char *argv[], Database *db);
+void handle_cache_stats(Database *db);
+void handle_batch_insert(Database *db);
+void handle_thread_test(Database *db);
 
 #endif
