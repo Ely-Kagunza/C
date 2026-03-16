@@ -11,6 +11,7 @@
 #include "threads.h"
 #include <windows.h>
 #include "threadpool.h"
+#include "profiler.h"
 
 void show_menu(void)
 {
@@ -33,7 +34,8 @@ void show_menu(void)
   printf("16. Test Batch Operations\n");
   printf("17. Test Threading\n");
   printf("18. Test Thread Pool\n");
-  printf("19. Quit\n");
+  printf("19. Run Performance Benchmarks\n");
+  printf("20. Quit\n");
   printf("Selection: ");
 }
 
@@ -616,6 +618,10 @@ int main(int argc, char *argv[])
       test_threadpool();
     }
     else if (choice == 19)
+    {
+      benchmark_run_all(db);
+    }
+    else if (choice == 20)
     {
       printf("Goodbye!\n");
       break;
