@@ -57,11 +57,12 @@ void cache_free(QueryCache *cache)
 }
 
 // ============================================================================
-// LOOKUP - Find query in cache
+// LOOKUP - Find query in cache and update timestamp (LRU touch)
 // ============================================================================
 //
-// TIME: O(n) where n = cache_count (could optimize with hash if needed)
-// RETURN: Pointer to cached results if found, NULL if not
+// KEY CHANGE: Update timestamp on access
+// This "touches" the entry to mark it as recently used
+// If we never access it again, it becomes the LRU candidate for eviction
 // ============================================================================
 CachedQuery *cache_lookup(QueryCache *cache, const char *query_string)
 {
@@ -74,6 +75,10 @@ CachedQuery *cache_lookup(QueryCache *cache, const char *query_string)
         if (strcmp(cache->queries[i].query_string, query_string) == 0)
         {
             printf("[CACHE HIT] Query found in cache\n");
+
+            // Update timestamp to mark as recently used
+            cache->queries[i].timestamp = time(NULL);
+
             return &cache->queries[i];
         }
     }
@@ -83,12 +88,42 @@ CachedQuery *cache_lookup(QueryCache *cache, const char *query_string)
 }
 
 // ============================================================================
-// INSERT - Add query results to cache
+// FIND LRU - Find entry with oldest timestamp
 // ============================================================================
 //
-// STRATEGY: Simple FIFO (first-in-first-out)
-// When cache is full, overwrite oldest entry
-// (Production systems use LRU - least recently used)
+// ALGORITHM:
+// 1. Loop through all cached queries
+// 2. Track minimum timestamp and its index
+// 3. Return index of least recently used
+// ============================================================================
+static int cache_find_lru(QueryCache *cache)
+{
+    if (cache->cache_count == 0)
+        return -1;
+
+    int lru_index = 0;
+    long oldest_time = cache->queries[0].timestamp;
+
+    for (int i = 1; i < cache->cache_count; i++)
+    {
+        if (cache->queries[i].timestamp < oldest_time)
+        {
+            oldest_time = cache->queries[i].timestamp;
+            lru_index = i;
+        }
+    }
+
+    return lru_index;
+}
+
+// ============================================================================
+// INSERT - Add query results to cache with LRU eviction
+// ============================================================================
+//
+// STRATEGY: LRU (Least Recently Used)
+// - Track timestamp of last access
+// - When cache is full, evict the entry with oldest timestamp
+// - Much better than FIFO for real workloads
 // ============================================================================
 void cache_insert(QueryCache *cache, const char *query_string, Person **results, int result_count)
 {
@@ -97,7 +132,7 @@ void cache_insert(QueryCache *cache, const char *query_string, Person **results,
 
     int insert_index;
 
-    // Check if we're overwritting an existing entry
+    // Check if we're updating an existing entry
     int existing_index = -1;
     for (int i = 0; i < cache->cache_count; i++)
     {
@@ -113,6 +148,7 @@ void cache_insert(QueryCache *cache, const char *query_string, Person **results,
         // Update existing cache entry
         insert_index = existing_index;
         free(cache->queries[insert_index].results);
+        printf("[CACHE UPDATE] Updating existing query: %s\n", query_string);
     }
     else if (cache->cache_count < cache->cache_size)
     {
@@ -120,19 +156,15 @@ void cache_insert(QueryCache *cache, const char *query_string, Person **results,
         insert_index = cache->cache_count;
         cache->cache_count++;
     }
-    else
+    else 
     {
-        // Cache full - overwrite first entry (FIFO)
-        printf("[CACHE FULL] Evicting oldest entry\n");
-        free(cache->queries[0].results);
-        insert_index = 0;
+        // Cache full - find and evict LRU entry
+        int lru_index = cache_find_lru(cache);
+        insert_index = lru_index;
 
-        // Shift all down by 1
-        for (int i = 1; i < cache->cache_count - 1; i++)
-        {
-            cache->queries[i] = cache->queries[i + 1];
-        }
-        insert_index = cache->cache_count - 1;
+        printf("[CACHE EVICT] Removing LRU entry: '%s' (timestamp: %ld)\n", cache->queries[lru_index].query_string, cache->queries[lru_index].timestamp);
+
+        free(cache->queries[lru_index].results);
     }
 
     // Copy query string
@@ -140,20 +172,21 @@ void cache_insert(QueryCache *cache, const char *query_string, Person **results,
     cache->queries[insert_index].query_string[255] = '\0';
 
     // Copy results
-    cache->queries[insert_index].results = malloc(sizeof(Person *) * result_count);
+    cache->queries[insert_index].results = malloc(result_count * sizeof(Person *));
     if (cache->queries[insert_index].results == NULL && result_count > 0)
     {
-        printf("Failed to allocate cache results\n");
+        printf("Failed to allocate memory for results\n");
         return;
     }
 
+    // Copy pointers and set count
     for (int i = 0; i < result_count; i++)
         cache->queries[insert_index].results[i] = results[i];
 
     cache->queries[insert_index].result_count = result_count;
     cache->queries[insert_index].timestamp = time(NULL);
 
-    printf("[CACHE INSERT] Stored %d results for query: %s\n", result_count, query_string);
+    printf("[CACHE INSERT] Stored %d results for query: '%s'\n", result_count, query_string);
 
 }
 
@@ -188,18 +221,30 @@ void cache_display_stats(QueryCache *cache)
     if (cache == NULL)
         return;
 
-      printf("\n=== Query Cache Statistics ===\n");
-      printf("Cached queries: %d/%d\n", cache->cache_count, cache->cache_size);
-      printf("Utilization:   %.1f%%\n", (100.0 * cache->cache_count) / cache->cache_size);
-  
-      if (cache->cache_count > 0)
-      {
-          printf("\nCached queries:\n");
-          for (int i = 0; i < cache->cache_count; i++)
-          {
-              printf("  [%d] %s (%d results)\n", i, cache->queries[i].query_string, cache->queries[i].result_count);
-          }
-      }
+    printf("\n=== Query Cache Statistics ===\n");
+    printf("Cached queries: %d/%d\n", cache->cache_count, cache->cache_size);
+    printf("Utilization:   %.1f%%\n", (100.0 * cache->cache_count) / cache->cache_size);
+
+    if (cache->cache_count > 0)
+    {
+        printf("\nCached queries (ordered by recency):\n");
+        // Find LRU to show it
+        int lru_index = cache_find_lru(cache);
+        time_t now = time(NULL);
+
+        for (int i = 0; i < cache->cache_count; i++)
+        {
+            long age = now - cache->queries[i].timestamp;
+            char marker[20] = "";
+
+            if (i == lru_index)
+                strcpy(marker, " <-- LRU");
+
+            printf("  [%d] %s (%d results, age: %ld sec)%s\n",
+                i, cache->queries[i].query_string, 
+                cache->queries[i].result_count, age, marker);
+        }
+    }
   
       printf("==============================\n\n");
   } 

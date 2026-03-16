@@ -10,6 +10,7 @@
 #include "batch.h"
 #include "threads.h"
 #include <windows.h>
+#include "threadpool.h"
 
 void show_menu(void)
 {
@@ -31,7 +32,8 @@ void show_menu(void)
   printf("15. Test query cache\n");
   printf("16. Test Batch Operations\n");
   printf("17. Test Threading\n");
-  printf("18. Quit\n");
+  printf("18. Test Thread Pool\n");
+  printf("19. Quit\n");
   printf("Selection: ");
 }
 
@@ -366,6 +368,47 @@ void test_threading(Database *db)
     threadsafe_db_free(tsdb);
 }
 
+// Example task: simulate some work
+void example_task(void *arg)
+{
+    int task_num = *(int *)arg;
+    printf("[Task %d] Doing work...\n", task_num);
+    Sleep(500);  // Simulate work
+    printf("[Task %d] Done!\n", task_num);
+    free(arg);
+}
+
+// Test Phase 9: Thread pool
+void test_threadpool(void)
+{
+    printf("\n=== Phase 9: Thread Pool ===\n\n");
+    
+    // Create pool with 4 workers
+    ThreadPool *pool = threadpool_create(4);
+    if (pool == NULL)
+    {
+        printf("Failed to create thread pool\n");
+        return;
+    }
+    
+    // Submit 10 tasks
+    printf("Submitting 10 tasks to 4-worker pool...\n\n");
+    for (int i = 0; i < 10; i++)
+    {
+        int *task_num = malloc(sizeof(int));
+        *task_num = i;
+        threadpool_submit(pool, example_task, task_num);
+        Sleep(100);  // Stagger submissions
+    }
+    
+    // Let tasks complete
+    printf("\nWaiting for completion...\n");
+    Sleep(3000);
+    
+    threadpool_display_stats(pool);
+    threadpool_free(pool);
+}
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -569,6 +612,10 @@ int main(int argc, char *argv[])
       test_threading(db);
     }
     else if (choice == 18)
+    {
+      test_threadpool();
+    }
+    else if (choice == 19)
     {
       printf("Goodbye!\n");
       break;
