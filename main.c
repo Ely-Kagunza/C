@@ -12,6 +12,7 @@
 #include <windows.h>
 #include "threadpool.h"
 #include "profiler.h"
+#include "replication.h"
 
 void show_menu(void)
 {
@@ -35,7 +36,8 @@ void show_menu(void)
   printf("17. Test Threading\n");
   printf("18. Test Thread Pool\n");
   printf("19. Run Performance Benchmarks\n");
-  printf("20. Quit\n");
+  printf("20. Test Database Replication\n");
+  printf("21. Quit\n");
   printf("Selection: ");
 }
 
@@ -411,6 +413,55 @@ void test_threadpool(void)
     threadpool_free(pool);
 }
 
+void test_replication(Database *db)
+{
+    printf("\n=== Phase 9: Database Replication ===\n\n");
+
+    // Create replication manager
+    ReplicationManager *rm = replication_create(db);
+    if (rm == NULL)
+    {
+        printf("Failed to create replication\n");
+        return;
+    }
+
+    // TEST 1: Initial sync
+    printf("TEST 1: Initial state\n");
+    replication_display_stats(rm);
+
+    // TEST 2: Log some changes
+    printf("TEST 2: Simulate 3 new inserts\n");
+    Person new_records[] = {
+        {201, "Repl1", 40, 70000},
+        {202, "Repl2", 35, 65000},
+        {203, "Repl3", 45, 75000}
+    };
+
+    for (int i = 0; i < 3; i++)
+    {
+        db_add_record(db, new_records[i]);
+    }
+
+    replication_display_stats(rm);
+
+    printf("\nTEST 3: Detect changes (replication system reads primary)\n");
+    replication_detect_changes(rm);  // System notices changes
+    
+    replication_display_stats(rm);
+
+    printf("TEST 4: Apply changes to replica\n");
+    replication_sync(rm);  // Replica replays log
+
+    replication_display_stats(rm);
+
+    printf("TEST 5: Failover\n");
+    replication_failover(rm);
+
+    replication_display_stats(rm);
+
+    replication_free(rm);
+}
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -622,6 +673,10 @@ int main(int argc, char *argv[])
       benchmark_run_all(db);
     }
     else if (choice == 20)
+    {
+      test_replication(db);
+    }
+    else if (choice == 21)
     {
       printf("Goodbye!\n");
       break;

@@ -14,6 +14,9 @@ typedef enum {
     CMD_BATCH_INSERT, // Batch insert demo
     CMD_THREAD_TEST, // Concurrent threading test
     CMD_INTERACTIVE,
+    CMD_REPLICATION_SYNC, // Synchronize replication
+    CMD_REPLICATION_FAILOVER, // Failover to replica
+    CMD_REPLICATION_STATS, // Show replication status
     CMD_INVALID
 } CommandType;
 

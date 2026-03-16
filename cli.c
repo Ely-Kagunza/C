@@ -45,6 +45,12 @@ CommandType parse_command(int argc, char *argv[])
         return CMD_BATCH_INSERT;
     else if (strcmp(cmd, "thread-test") == 0)
         return CMD_THREAD_TEST;
+    else if (strcmp(cmd, "replication-sync") == 0)
+        return CMD_REPLICATION_SYNC;
+    else if (strcmp(cmd, "replication-failover") == 0)
+        return CMD_REPLICATION_FAILOVER;
+    else if (strcmp(cmd, "replication-stats") == 0)
+        return CMD_REPLICATION_STATS;
     else
         return CMD_INVALID;
 }
@@ -563,6 +569,32 @@ void handle_thread_test(Database *db)
 
     threadsafe_db_free(tsdb);
 }
+
+// void handle_replication_sync(Database *db)
+// {
+//     printf("\n=== Replication Sync ===\n");
+//     printf("This would sync replica (feature requires replication manager integration)\n\n");
+// }
+
+// void handle_replication_stats(ReplicationManager *rm)
+// {
+//     if (rm == NULL)
+//     {
+//         printf("Replication not initialized\n");
+//         return;
+//     }
+//     replication_display_stats(rm);
+// }
+
+// void handle_replication_failover(ReplicationManager *rm)
+// {
+//     if (rm == NULL)
+//     {
+//         printf("Replication not initialized\n");
+//         return;
+//     }
+//     replication_failover(rm);
+// }
           
 
 
