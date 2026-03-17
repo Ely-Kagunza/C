@@ -13,6 +13,9 @@
 #include "threadpool.h"
 #include "profiler.h"
 #include "replication.h"
+#include "sql_tokenizer.h"
+#include "sql_parser.h"
+#include "sql_executor.h"
 
 void show_menu(void)
 {
@@ -37,7 +40,9 @@ void show_menu(void)
   printf("18. Test Thread Pool\n");
   printf("19. Run Performance Benchmarks\n");
   printf("20. Test Database Replication\n");
-  printf("21. Quit\n");
+  printf("21. Test SQL Tokenizer\n");
+  printf("22. Test SQL Parser\n");
+  printf("23. Quit\n");
   printf("Selection: ");
 }
 
@@ -462,6 +467,124 @@ void test_replication(Database *db)
     replication_free(rm);
 }
 
+// Add this to test the tokenizer
+void test_tokenizer()
+{
+    const char *queries[] = {
+        "SELECT * FROM people",
+        "SELECT id, name FROM people WHERE age > 30",
+        "SELECT * FROM people WHERE age > 30 AND salary < 100000",
+        "INSERT INTO people VALUES (1, 'John', 30, 50000)",
+        "UPDATE people SET salary = 60000 WHERE id = 1",
+        "DELETE FROM people WHERE age < 18",
+        "SELECT * FROM people ORDER BY salary DESC LIMIT 10"
+    };
+
+    printf("\n=== Testing SQL Tokenizer ===\n\n");
+
+    for (int i = 0; i < 7; i++)
+    {
+        printf("Query: %s\n", queries[i]);
+        TokenList *tokens = tokenize(queries[i]);
+        token_list_print(tokens);
+        token_list_free(tokens);
+    }
+}
+
+void test_parser()
+{
+    const char *queries[] = {
+        "SELECT * FROM people",
+        "SELECT id, name FROM people WHERE age > 30",
+        "SELECT * FROM people WHERE age > 30 AND salary < 100000 ORDER BY salary DESC",
+        "SELECT id, name, salary FROM people WHERE age > 30 ORDER BY salary DESC LIMIT 10",
+    };
+
+    printf("\n=== Testing SQL Parser & Executor ===\n\n");
+
+    // Load database
+    Database *db = db_load_from_file("people.db");
+    if (db == NULL)
+    {
+        printf("Failed to load database\n");
+        return;
+    }
+
+    // Insert 20 sample records
+    printf("Inserting 20 sample records...\n\n");
+    Person test_data[] = {
+        {1, "Alice", 25, 50000},
+        {2, "Bob", 28, 55000},
+        {3, "Charlie", 32, 60000},
+        {4, "Diana", 29, 58000},
+        {5, "Eve", 31, 62000},
+        {6, "Frank", 26, 52000},
+        {7, "Grace", 34, 65000},
+        {8, "Henry", 27, 54000},
+        {9, "Iris", 33, 63000},
+        {10, "Jack", 30, 59000},
+        {11, "Karen", 35, 70000},
+        {12, "Leo", 24, 48000},
+        {13, "Mia", 38, 75000},
+        {14, "Noah", 22, 45000},
+        {15, "Olivia", 36, 68000},
+        {16, "Peter", 41, 80000},
+        {17, "Quinn", 23, 47000},
+        {18, "Rachel", 39, 78000},
+        {19, "Sam", 40, 82000},
+        {20, "Tina", 37, 72000}
+    };
+
+    for (int i = 0; i < 20; i++)
+    {
+        db_add_record(db, test_data[i]);
+    }
+
+    printf("\n✅ Database now has %d records\n\n", db->count);
+
+    // Now run the SQL queries
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("        SQL PARSER & EXECUTOR TEST - 4 QUERIES\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    for (int i = 0; i < 4; i++)
+    {
+        printf("═══════════════════════════════════════════════════════\n");
+        printf("Query %d: %s\n", i + 1, queries[i]);
+        printf("═══════════════════════════════════════════════════════\n\n");
+        
+        TokenList *tokens = tokenize(queries[i]);
+        ParserResult *parse_result = parse(tokens);
+        
+        if (parse_result->success)
+        {
+            print_parsed_query(parse_result);
+            
+            // Execute the parsed query
+            QueryResult *exec_result = execute_query(db, parse_result);
+            query_result_display(exec_result, &parse_result->parsed_query.query.select);
+            query_result_free(exec_result);
+
+            // Repeat the same query to see if cache is used
+            printf("\n═══════════════════════════════════════════════════════\n");
+            printf("  Query %d (repeated): %s\n", i + 1, queries[i]);
+            printf("═══════════════════════════════════════════════════════\n\n");
+            QueryResult *exec_result2 = execute_query(db, parse_result);
+            query_result_display(exec_result2, &parse_result->parsed_query.query.select);
+            query_result_free(exec_result2);
+        }
+        else
+        {
+            printf("❌ Parser error: %s\n\n", parse_result->error_message);
+        }
+        
+        parser_result_free(parse_result);
+        token_list_free(tokens);
+    }
+
+    db_free(db);
+}
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -677,6 +800,14 @@ int main(int argc, char *argv[])
       test_replication(db);
     }
     else if (choice == 21)
+    {
+      test_tokenizer();
+    }
+    else if (choice == 22)
+    {
+      test_parser();
+    }
+    else if (choice == 23)
     {
       printf("Goodbye!\n");
       break;
