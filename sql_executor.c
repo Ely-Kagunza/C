@@ -281,11 +281,11 @@ void query_result_display(QueryResult *result, SelectQuery *query)
 
     if (!result->success)
     {
-        printf("❌ Query execution failed: %s\n\n", result->error_message);
+        printf("Query execution failed: %s\n\n", result->error_message);
         return;
     }
 
-    printf("\n✅ Query executed successfully - Returned %d records\n\n", result->count);
+    printf("\nQuery executed successfully - Returned %d records\n\n", result->count);
 
     if (result->count == 0)
     {

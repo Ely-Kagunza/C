@@ -44,6 +44,17 @@ Database *db_create(int initial_capacity)
         return NULL;
     }
 
+    // Create callback system
+    db->callbacks = callback_create();
+    if (db->callbacks == NULL)
+    {
+        printf("Failed to create callback system!\n");
+        hash_free(db->id_index);
+        free(db->records);
+        free(db);
+        return NULL;
+    }
+
     return db;
 }
 
@@ -54,6 +65,7 @@ void db_free(Database *db)
         free(db->records);
         hash_free(db->id_index);
         cache_free(db->query_cache);
+        callback_free(db->callbacks);
         free(db);
     }
 }
@@ -104,6 +116,13 @@ int db_add_record(Database *db, Person record)
     cache_invalidate(db->query_cache);
 
     printf("Record added successfully. Database has %d/%d records.\n", db->count, db->capacity);
+
+    // Trigger INSERT callback
+    if (db->callbacks != NULL)
+    {
+        callbacks_trigger_insert(db->callbacks, &db->records[db->count - 1]);
+    }
+    
     return 1;
 }
 

@@ -16,6 +16,7 @@
 #include "sql_tokenizer.h"
 #include "sql_parser.h"
 #include "sql_executor.h"
+#include "sql_callbacks.h"
 
 void show_menu(void)
 {
@@ -42,7 +43,8 @@ void show_menu(void)
   printf("20. Test Database Replication\n");
   printf("21. Test SQL Tokenizer\n");
   printf("22. Test SQL Parser\n");
-  printf("23. Quit\n");
+  printf("23. Test Callbacks\n");
+  printf("24. Quit\n");
   printf("Selection: ");
 }
 
@@ -585,6 +587,102 @@ void test_parser()
     db_free(db);
 }
 
+// ============== EXAMPLE CALLBACK #1: AUDIT LOG ==============
+typedef struct {
+    int total_inserts;
+    int total_deletes;
+    int total_updates;
+} AuditStats;
+
+void audit_log_insert(Person *record, void *user_data)
+{
+    AuditStats *stats = (AuditStats *)user_data;
+    stats->total_inserts++;
+
+    printf("  ✓ [AUDIT LOG] INSERT event\n");
+    printf("    ID: %d, Name: %s, Age: %d, Salary: %.2f\n",
+           record->id, record->name, record->age, record->salary);
+    printf("    Total inserts so far: %d\n", stats->total_inserts);
+}
+
+
+// ============== EXAMPLE CALLBACK #2: VALIDATION ==============
+void validation_check_insert(Person *record, void *user_data)
+{
+    printf("  ✓ [VALIDATION] Checking record...\n");
+
+    if (record->age < 18)
+        printf("  WARNING: Age is less than 18!\n");
+
+    if (record->salary <= 0)
+        printf(" WARNING: Invalid salary!");
+
+    if (strlen(record->name) == 0)
+        printf(" WARNING: Name is empty!\n");
+
+    printf(" Validation check completed.\n");
+}
+
+// ============== EXAMPLE CALLBACK #3: EMAIL NOTIFICATION ==============
+void email_notification_insert(Person *record, void *user_data)
+{
+    printf("  ✓ [EMAIL] Sending notification...\n");
+    printf("    To: admin@database.com\n");
+    printf("    Subject: New Employee Added\n");
+    printf("    Body: %s (ID: %d) has been added to the system\n",
+          record->name, record->id);
+    printf("    Email sent!\n");
+}
+
+void test_callbacks()
+{
+    printf("\n=== Phase 11: Callbacks Testing ===\n\n");
+
+    // Load database
+    Database *db = db_load_from_file("people.db");
+    if (db == NULL)
+    {
+        printf("Failed to load database\n");
+        return;
+    }
+
+    // Create audit statistics
+    AuditStats stats = {0, 0, 0};
+
+    // Register callbacks
+    printf("Registering callbacks...\n");
+    callbacks_register_insert(db->callbacks, audit_log_insert, &stats);
+    callbacks_register_insert(db->callbacks, validation_check_insert, NULL);
+    callbacks_register_insert(db->callbacks, email_notification_insert, NULL);
+
+    callbacks_display_stats(db->callbacks);
+
+    // Now insert records - callbacks will run automatically
+    printf("Inserting records (callbacks will trigger)...\n\n");
+
+    Person test_people[] = {
+        {100, "Alice", 28, 60000},
+        {101, "Bob", 35, 75000},
+        {102, "Charlie", 16, 40000},  // Invalid age!
+    };
+
+    for (int i = 0; i < 3; i++)
+    {
+        printf("─────────────────────────────────────\n");
+        printf("Inserting: %s\n", test_people[i].name);
+        printf("─────────────────────────────────────\n");
+        db_add_record(db, test_people[i]);
+    }
+
+    // Show final statistics
+    printf("\n=== Final Audit Statistics ===\n");
+    printf("Total inserts: %d\n", stats.total_inserts);
+    printf("Total deletes: %d\n", stats.total_deletes);
+    printf("Total updates: %d\n\n", stats.total_updates);
+
+    db_free(db);
+}
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -808,6 +906,10 @@ int main(int argc, char *argv[])
       test_parser();
     }
     else if (choice == 23)
+    {
+      test_callbacks();
+    }
+    else if (choice == 24)
     {
       printf("Goodbye!\n");
       break;

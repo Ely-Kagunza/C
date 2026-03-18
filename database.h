@@ -4,6 +4,7 @@
 #include "person.h"
 #include "hash.h"
 #include "cache.h"
+#include "sql_callbacks.h"
 
 // Database structure for in-memory storage
 typedef struct {
@@ -12,6 +13,7 @@ typedef struct {
   int capacity;
   HashTable *id_index;
   QueryCache *query_cache;
+  CallbackSystem *callbacks;
 } Database;
 
 // Core database operations
