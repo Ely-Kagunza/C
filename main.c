@@ -17,6 +17,7 @@
 #include "sql_parser.h"
 #include "sql_executor.h"
 #include "sql_callbacks.h"
+#include "sql_executor_strategies.h"
 
 void show_menu(void)
 {
@@ -44,7 +45,8 @@ void show_menu(void)
   printf("21. Test SQL Tokenizer\n");
   printf("22. Test SQL Parser\n");
   printf("23. Test Callbacks\n");
-  printf("24. Quit\n");
+  printf("24. Test Vtable Executors\n");
+  printf("25. Quit\n");
   printf("Selection: ");
 }
 
@@ -683,6 +685,160 @@ void test_callbacks()
     db_free(db);
 }
 
+// ============== PHASE 11 PART 2: VTABLES - POLYMORPHIC EXECUTORS ==============
+void test_vtable_executors()
+{
+    printf("\n=== Phase 11 Part 2: Vtables (Polymorphic Query Executors) ===\n\n");
+
+    // Load database
+    Database *db = db_load_from_file("people.db");
+    if (db == NULL)
+    {
+        printf("Failed to load database\n");
+        return;
+    }
+
+    // Insert 15 sample records
+    printf("Setting up database with sample records...\n\n");
+    Person test_data[] = {
+        {1, "Alice", 25, 50000},
+        {2, "Bob", 28, 55000},
+        {3, "Charlie", 32, 60000},
+        {4, "Diana", 29, 58000},
+        {5, "Eve", 31, 62000},
+        {6, "Frank", 26, 52000},
+        {7, "Grace", 34, 65000},
+        {8, "Henry", 27, 54000},
+        {9, "Iris", 33, 63000},
+        {10, "Jack", 30, 59000},
+        {11, "Karen", 35, 70000},
+        {12, "Leo", 24, 48000},
+        {13, "Mia", 38, 75000},
+        {14, "Noah", 22, 45000},
+        {15, "Olivia", 36, 68000}
+    };
+
+    for (int i = 0; i < 15; i++)
+    {
+        db_add_record(db, test_data[i]);
+    }
+
+    printf(" Database loaded with %d records\n\n", db->count);
+
+    // Create three different executor strategies
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("Creating 3 different query executor strategies...\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    QueryExecutor *sequential_executor = executor_sequential_create(db);
+    QueryExecutor *indexed_executor = executor_indexed_create(db);
+    QueryExecutor *cached_executor = executor_cached_create(db);
+
+    printf("✓ Sequential Executor created\n");
+    printf("✓ Indexed Executor created\n");
+    printf("✓ Cached Executor created\n\n");
+
+    // Array of executors to test
+    QueryExecutor *executors[] = {sequential_executor, indexed_executor, cached_executor};
+    int num_executors = 3;
+
+    // Create a dummy parser result (for demonstration purposes)
+    ParserResult *parse_result = malloc(sizeof(ParserResult));
+    parse_result->success = 1;
+    parse_result->parsed_query.type = QUERY_SELECT;
+
+    Person *results[100];
+    int max_results = 100;
+
+    // ============= TEST 1: STRATEGY COMPARISON =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 1: Running query with each strategy\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    for (int i = 0; i < num_executors; i++)
+    {
+        int result_count = executor_run(executors[i], parse_result, results, max_results);
+
+        printf("Results from %s strategy:\n", executors[i]->name);
+        for (int j = 0; j < result_count && j < 5; j++)
+        {
+            printf(" - %s (Age %d, Salary %.2f)\n", results[j]->name, results[j]->age, results[j]->salary);
+        }
+        if (result_count > 5)
+            printf(" ... and %d more\n", result_count - 5);
+        printf("\n");
+    }
+
+    // ============= TEST 2: CACHE EFFECTIVENESS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 2: Cache strategy efficiency (repeated query)\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Query 1 (first time - will cache):\n");
+    int count1 = executor_run(cached_executor, parse_result, results, max_results);
+
+    printf("\nQuery 2 (second time - should hit cache):\n");
+    int count2 = executor_run(cached_executor, parse_result, results, max_results);
+
+    printf("Both queries returned %d results\n\n", count1);
+
+    // ============= TEST 3: STRATEGY STATISTICS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 3: Performance statistics for each strategy\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    for (int i = 0; i < num_executors; i++)
+    {
+        printf("Strategy: %s\n", executors[i]->name);
+        executors[i]->display_stats(executors[i]);
+        printf("\n");
+    }
+
+    // ============= TEST 4: POLYMORPHISM DEMONSTRATION =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 4: Polymorphism demonstration\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Notice: Same function works with any executor!\n\n");
+    printf("Code pattern:\n");
+    printf("  for (int i = 0; i < num_executors; i++) {\n");
+    printf("      executor_run(executors[i], ...);\n");
+    printf("  }\n\n");
+    printf("This is polymorphism without classes!\n");
+    printf("Each executor has different behavior (execute, display_stats, free)\n");
+    printf("But all share the same interface (QueryExecutor vtable)\n\n");
+
+    // ============= REAL-WORLD APPLICATION =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("Real-world applications of Vtables:\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("1. SQLite:\n");
+    printf("   - Different storage engines (B-tree, WAL, memory)\n");
+    printf("   - All implement same interface\n");
+    printf("   - Query optimizer chooses best engine\n\n");
+
+    printf("2. Linux Kernel:\n");
+    printf("   - File system drivers (ext4, NTFS, FAT, etc.)\n");
+    printf("   - All implement same VFS interface\n");
+    printf("   - Kernel dispatches through function pointers\n\n");
+
+    printf("3. Game Engines:\n");
+    printf("   - Entity types: Player, Enemy, NPC\n");
+    printf("   - Each has update(), render(), destroy()\n");
+    printf("   - Main loop calls through vtable\n\n");
+
+    // Cleanup
+    free(parse_result);
+    sequential_executor->free_executor(sequential_executor);
+    indexed_executor->free_executor(indexed_executor);
+    cached_executor->free_executor(cached_executor);
+    db_free(db);
+
+    printf(" Vtable demonstration complete!\n\n");
+}
+
+
 int main(int argc, char *argv[])
 {
   // Load database from file
@@ -910,6 +1066,10 @@ int main(int argc, char *argv[])
       test_callbacks();
     }
     else if (choice == 24)
+    {
+      test_vtable_executors();
+    }
+    else if (choice == 25)
     {
       printf("Goodbye!\n");
       break;
