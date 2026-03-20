@@ -18,6 +18,7 @@
 #include "sql_executor.h"
 #include "sql_callbacks.h"
 #include "sql_executor_strategies.h"
+#include "sql_macro_system.h"
 
 void show_menu(void)
 {
@@ -46,7 +47,8 @@ void show_menu(void)
   printf("22. Test SQL Parser\n");
   printf("23. Test Callbacks\n");
   printf("24. Test Vtable Executors\n");
-  printf("25. Quit\n");
+  printf("25. Test Macros\n");
+  printf("26. Quit\n");
   printf("Selection: ");
 }
 
@@ -838,6 +840,162 @@ void test_vtable_executors()
     printf(" Vtable demonstration complete!\n\n");
 }
 
+// =============== PHASE 11 PART 3: MACROS (METAPROGRAMMING) ==============
+void test_macros()
+{
+    printf("\n=== Phase 11 Part 3: Macros (Metaprogramming) ===\n\n");
+
+    // ============= TEST 1: BASIC MACROS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 1: Basic Macros (MAX, MIN, Variadic)\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+    
+    int a = 15, b = 23;
+    printf("MAX(%d, %d) = %d\n", a, b, MAX(a, b));
+    printf("MIN(%d, %d) = %d\n", a, b, MIN(a, b));
+
+    printf("\nVariadic Macros:\n");
+    PRINT_INFO("Starting macro tests");
+    PRINT_DEBUG("Database connection established");
+    PRINT_ERROR("Failed to load configuration");
+    printf("\n");
+
+    // ============= TEST 2: STRINGIFICATION & TOKEN PASTING =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 2: Stringification and Token Pasting\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    int age_field = 30;
+    printf("Field name using STRINGIFY: %s\n", FIELD_NAME(age_field));
+
+    printf("\nGenerating function names with CONCAT:\n");
+    printf("  CONCAT(sort_, by_age) → sort_by_age\n");
+    printf("  CONCAT(compare_, by_salary) → compare_by_salary\n");
+    printf("  (These would be actual function names in code)\n\n");
+
+    // ============= TEST 3: X-MACRO FIELD METADATA =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 3: X-Macro Field Information\n");
+    printf("═══════════════════════════════════════════════════════\n");
+
+    macro_display_field_info();
+
+    // ============= TEST 4: X-MACRO CODE GENERATION =============
+    printf("\n═══════════════════════════════════════════════════════\n");
+    printf("TEST 4: X-Macro Code Generation Example\n");
+    printf("═══════════════════════════════════════════════════════\n");
+
+    macro_generate_comparison_table();
+
+    // ============= TEST 5: GENERATED PRINT FUNCTION =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 5: Using Generated macro_print_person()\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    Person example_person = {42, "John Doe", 28, 65000.50};
+    macro_print_person(&example_person);
+
+    // ============= TEST 6: GENERATED COMPARISON =============
+    printf("\n═══════════════════════════════════════════════════════\n");
+    printf("TEST 6: Using Generated macro_compare_persons()\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    Person person1 = {1, "Alice", 30, 75000.00};
+    Person person2 = {1, "Alice", 30, 75000.00};
+    Person person3 = {2, "Bob", 25, 60000.00};
+
+    printf("Comparing person1 (Alice) with person2 (Alice):\n");
+    macro_compare_persons(&person1, &person2);
+
+    printf("\nComparing person1 (Alice) with person3 (Bob):\n");
+    macro_compare_persons(&person1, &person3);
+
+    // ============= TEST 7: GENERATED SERIALIZATION =============
+    printf("\n═══════════════════════════════════════════════════════\n");
+    printf("TEST 7: Using Generated Serialization\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    char buffer[256];
+    macro_serialize_person(&example_person, buffer, sizeof(buffer));
+
+    Person deserialized;
+    macro_deserialize_person(buffer, &deserialized);
+    printf("Deserialized result:\n");
+    macro_print_person(&deserialized);
+
+    // ============= TEST 8: GENERATED OPERATOR TABLE =============
+    printf("\n═══════════════════════════════════════════════════════\n");
+    printf("TEST 8: X-Macro Generated Operator Codes\n");
+    printf("═══════════════════════════════════════════════════════\n");
+
+    macro_display_operators();
+
+    // ============= TEST 9: MACRO POWERS SUMMARY =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 9: Why Macros Are Powerful\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("1. ZERO RUNTIME OVERHEAD\n");
+    printf("   • Expanded at compile-time\n");
+    printf("   • No function call cost\n");
+    printf("   • Inlined automatically\n\n");
+
+    printf("2. CODE GENERATION (X-Macros)\n");
+    printf("   • Define structure ONCE\n");
+    printf("   • Generate print, compare, serialize from same definition\n");
+    printf("   • Add field? Update only one place!\n\n");
+
+    printf("3. TYPE-AGNOSTIC OPERATIONS\n");
+    printf("   • MAX(a, b) works for int, float, double, etc.\n");
+    printf("   • No code duplication\n\n");
+
+    printf("4. REAL-WORLD SYSTEMS\n");
+    printf("   • Linux kernel: Driver registration, system calls\n");
+    printf("   • SQLite: Query optimization, virtual tables\n");
+    printf("   • Game engines: Entity systems, message dispatch\n\n");
+
+    printf("5. METAPROGRAMMING (Compile-time programming)\n");
+    printf("   • Write programs that write programs\n");
+    printf("   • Reduce human error\n");
+    printf("   • Ensure consistency across codebase\n\n");
+
+    // ============= TEST 10: COMPARISON: WITH vs WITHOUT MACROS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 10: Without Macros vs With Macros\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("WITHOUT MACROS (Manual, error-prone):\n");
+    printf("─────────────────────────────────────────────────────────\n");
+    printf("void print_person(Person *p) {\n");
+    printf("    printf(\"id: %%d\\\\n\", p->id);\n");
+    printf("    printf(\"name: %%s\\\\n\", p->name);\n");
+    printf("    printf(\"age: %%d\\\\n\", p->age);\n");
+    printf("    printf(\"salary: %%.2f\\\\n\", p->salary);\n");
+    printf("}\n\n");
+    printf("void compare_persons(Person *a, Person *b) {\n");
+    printf("    printf(\"id: %%s\", (a->id == b->id) ? \"OK\" : \"DIFF\");\n");
+    printf("    printf(\"name: %%s\", (a->name == b->name) ? \"OK\" : \"DIFF\");\n");
+    printf("    // ... and so on for each field ...\n");
+    printf("}\n\n");
+    printf("Problem: Add new field? Update EVERY function!\n\n");
+
+    printf("WITH MACROS (DRY, maintainable):\n");
+    printf("─────────────────────────────────────────────────────────\n");
+    printf("#define PERSON_FIELDS \\\n");
+    printf("    FIELD(id, int, \"%%d\") \\\n");
+    printf("    FIELD(name, char*, \"%%s\") \\\n");
+    printf("    FIELD(age, int, \"%%d\") \\\n");
+    printf("    FIELD(salary, double, \"%%.2f\")\n\n");
+    printf("void print_person(Person *p) {\n");
+    printf("    #define FIELD(name, type, fmt) printf(fmt, p->name);\n");
+    printf("    PERSON_FIELDS\n");
+    printf("    #undef FIELD\n");
+    printf("}\n\n");
+    printf("Benefit: Add new field? Update only PERSON_FIELDS!\n\n");
+
+    printf("✅ Phase 11 Part 3 Complete!\n\n");
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -1070,6 +1228,10 @@ int main(int argc, char *argv[])
       test_vtable_executors();
     }
     else if (choice == 25)
+    {
+      test_macros();
+    }
+    else if (choice == 26)
     {
       printf("Goodbye!\n");
       break;
