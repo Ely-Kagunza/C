@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +20,7 @@
 #include "sql_callbacks.h"
 #include "sql_executor_strategies.h"
 #include "sql_macro_system.h"
+#include "sys_io_strategies.h"
 
 void show_menu(void)
 {
@@ -48,7 +50,8 @@ void show_menu(void)
   printf("23. Test Callbacks\n");
   printf("24. Test Vtable Executors\n");
   printf("25. Test Macros\n");
-  printf("26. Quit\n");
+  printf("26. Test Systems Programming\n");
+  printf("27. Quit\n");
   printf("Selection: ");
 }
 
@@ -996,6 +999,255 @@ void test_macros()
     printf("✅ Phase 11 Part 3 Complete!\n\n");
 }
 
+// =============== PHASE 12: SYSTEMS PROGRAMMING & OS INTEGRATION ==============
+
+// Example callbacks: Log file operations
+typedef struct {
+    int open_count;
+    int read_count;
+    int write_count;
+    int close_count;
+} FileIOStats;
+
+void on_file_opened(int fd, const char *filepath, void *user_data)
+{
+    FileIOStats *stats = (FileIOStats *)user_data;
+    stats->read_count++;
+    printf("     Callback: File opened (fd=%d)\n", fd);
+}
+
+void on_file_read(int fd, size_t bytes_read, void *user_data)
+{
+    FileIOStats *stats = (FileIOStats *)user_data;
+    stats->read_count++;
+    printf("     Callback: Read %zu bytes\n", bytes_read);
+}
+
+void on_file_written(int fd, size_t bytes_written, void *user_data)
+{
+    FileIOStats *stats = (FileIOStats *)user_data;
+    stats->write_count++;
+    printf("     Callback: Wrote %zu bytes\n", bytes_written);
+}
+
+void on_file_closed(int fd, void *user_data)
+{
+    FileIOStats *stats = (FileIOStats *)user_data;
+    stats->close_count++;
+    printf("     Callback: File closed (fd=%d)\n", fd);
+}
+
+void test_systems_programming()
+{
+    printf("\n=== Phase 12: Systems Programming & OS Integration ===\n\n");
+
+    // ============= TEST 1: I/O STRATEGY COMPARISON =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 1: Three I/O Strategies (Vtables from Phase 11)\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Strategy Pattern: Different I/O backends, same interface\n\n");
+
+    // Create callbacks
+    FileIOStats stats = {0, 0, 0, 0};
+    IOCallbacks callbacks = {
+        .on_open = on_file_opened,
+        .on_read = on_file_read,
+        .on_write = on_file_written,
+        .on_close = on_file_closed,
+        .user_data = &stats
+    };
+
+    // Create three strategies
+    IOStrategy *standard = io_standard_create(callbacks);
+    IOStrategy *buffered = io_buffered_create(callbacks);
+    IOStrategy *mmap = io_mmap_create(callbacks);
+
+    printf("Created 3 I/O strategies:\n");
+    printf("  1. Standard I/O (direct system calls)\n");
+    printf("  2. Buffered I/O (internal buffering)\n");
+    printf("  3. Memory-Mapped I/O (advanced)\n\n");
+
+    // ============= TEST 2: WRITE TEST WITH DIFFERENT STRATEGIES =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 2: Writing to file with each strategy\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    const char *test_data = "Hello from Phase 12: Systems Programming!\n";
+
+    // Test 1: Standard I/O
+    printf("--- Strategy 1: Standard I/O ---\n");
+    int fd1 = standard->open(standard, "test_standard.txt",
+    #ifdef _WIN32
+        _O_CREAT | _O_TRUNC | _O_WRONLY
+    #else
+        O_CREAT | O_TRUNC | O_WRONLY
+    #endif
+    );
+    if (fd1 >= 0)
+    {
+        standard->write(standard, fd1, test_data, strlen(test_data));
+        standard->close(standard, fd1);
+    }
+    printf("\n");
+
+    // Test 2: Buffered I/O
+    printf("--- Strategy 2: Buffered I/O ---\n");
+    int fd2 = buffered->open(buffered, "test_buffered.txt",
+    #ifdef _WIN32
+        _O_CREAT | _O_TRUNC | _O_WRONLY
+    #else
+        O_CREAT | O_TRUNC | O_WRONLY
+    #endif
+    );
+    if (fd2 >= 0)
+    {
+        // Write multiple times to show buffering
+        for (int i = 0; i < 3; i++)
+        {
+            buffered->write(buffered, fd2, test_data, strlen(test_data));
+        }
+        buffered->close(buffered, fd2);
+    }
+    printf("\n");
+
+    // Test 3: Memory-Mapped I/O
+    printf("--- Strategy 3: Memory-Mapped I/O ---\n");
+    int fd3 = mmap->open(mmap, "test_mmap.txt",
+    #ifdef _WIN32
+        _O_CREAT | _O_WRONLY | _O_TRUNC
+    #else
+        O_CREAT | O_WRONLY | O_TRUNC
+    #endif
+    );
+    if (fd3 >= 0)
+    {
+        mmap->write(mmap, fd3, test_data, strlen(test_data));
+        mmap->close(mmap, fd3);
+    }
+    printf("\n");
+
+    // ============= TEST 3: CALLBACK STATISTICS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 3: Callback Statistics (Events from Phase 11)\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Callbacks fired during I/O operations:\n");
+    printf("  Opens:  %d\n", stats.open_count);
+    printf("  Reads:  %d\n", stats.read_count);
+    printf("  Writes: %d\n", stats.write_count);
+    printf("  Closes: %d\n\n", stats.close_count);
+
+    // ============= TEST 4: STRATEGY STATISTICS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 4: I/O Strategy Performance Comparison\n");
+    printf("═══════════════════════════════════════════════════════\n");
+
+    standard->display_stats(standard);
+    buffered->display_stats(buffered);
+    mmap->display_stats(mmap);
+
+    // ============= TEST 5: ERROR HANDLING WITH MACROS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 5: Error Handling Macros (Phase 11 Part 3)\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Macros used in Phase 12:\n");
+    printf("  • SYS_CALL(call) - Wrap system calls with error checking\n");
+    printf("  • HANDLE_OPEN_ERROR(fd) - Check file open results\n");
+    printf("  • HANDLE_READ_ERROR(bytes) - Check read operations\n");
+    printf("  • HANDLE_WRITE_ERROR(bytes) - Check write operations\n\n");
+
+    printf("Example usage in sys_io_strategies.c:\n");
+    printf("  int fd = open(path, flags);\n");
+    printf("  HANDLE_OPEN_ERROR(fd);  // Macro checks if fd < 0\n\n");
+
+    // ============= TEST 6: PHASE INTEGRATION SUMMARY =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 6: Integration of All Phases\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Phase 12 integrates previous learning:\n\n");
+
+    printf("✓ Phase 11 Part 1 (Callbacks):\n");
+    printf("    Events: on_file_open, on_file_read, on_file_write, on_file_close\n");
+    printf("    Triggered during I/O operations\n");
+    printf("    User data passed to callbacks\n\n");
+
+    printf("✓ Phase 11 Part 2 (Vtables):\n");
+    printf("    IOStrategy struct with function pointers\n");
+    printf("    3 implementations: Standard, Buffered, Memory-Mapped\n");
+    printf("    Runtime polymorphism for I/O strategies\n\n");
+
+    printf("✓ Phase 11 Part 3 (Macros):\n");
+    printf("    SYS_CALL() - Error handling macro\n");
+    printf("    HANDLE_*_ERROR() - Wrapper macros\n");
+    printf("    Preprocessor safety checks\n\n");
+
+    printf("✓ Phase 1-9 (Database System):\n");
+    printf("    File persistence for database records\n");
+    printf("    Direct system calls for file I/O\n\n");
+
+    printf("✓ Phase 10 (SQL):\n");
+    printf("    SQL queries executed on persistent database\n");
+    printf("    Results written to disk via Phase 12 I/O\n\n");
+
+    // ============= TEST 7: REAL-WORLD APPLICATION =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 7: Real-World Application: Save Database to Disk\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("Use case: Persist in-memory database to disk\n");
+    printf("Architecture:\n");
+    printf("  1. Load database from disk (Phase 1-9)\n");
+    printf("  2. Process SQL queries (Phase 10)\n");
+    printf("  3. Register callbacks for save operations (Phase 11 Part 1)\n");
+    printf("  4. Choose I/O strategy at runtime (Phase 11 Part 2)\n");
+    printf("  5. Use system calls with error handling (Phase 12)\n\n");
+
+    printf("Example flow:\n");
+    printf("  Database db = db_load_from_file(\"people.db\");\n");
+    printf("  IOStrategy strategy = io_buffered_create(callbacks);\n");
+    printf("  strategy->open(strategy, \"people_backup.db\", ...);\n");
+    printf("  for each record: strategy->write(strategy, fd, record, ...);\n");
+    printf("  strategy->close(strategy, fd);\n\n");
+
+    printf("Benefits:\n");
+    printf("  • Transparent I/O (switch strategies without code changes)\n");
+    printf("  • Event-driven (callbacks log/audit I/O operations)\n");
+    printf("  • Safe (error macros catch failures)\n");
+    printf("  • Portable (Windows/Linux compatibility)\n\n");
+
+    // ============= TEST 8: NEXT STEPS =============
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("TEST 8: Phase 12 Extensions (Not implemented)\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+
+    printf("What could be added to Phase 12:\n\n");
+
+    printf("1. Multi-Process Database (fork, IPC):\n");
+    printf("   • Use fork() to create reader/writer processes\n");
+    printf("   • Implement file locking for concurrent access\n");
+    printf("   • Use pipes for inter-process communication\n\n");
+
+    printf("2. Signal Handling:\n");
+    printf("   • SIGTERM for graceful shutdown\n");
+    printf("   • SIGUSR1 for cache flush signals\n");
+    printf("   • Signal handlers with callbacks\n\n");
+
+    printf("3. Advanced Features:\n");
+    printf("   • fcntl() for file locking\n");
+    printf("   • stat() for file metadata\n");
+    printf("   • dirfd() for directory operations\n");
+    printf("   • Full mmap() implementation for large files\n\n");
+
+    // Cleanup
+    standard->free_strategy(standard);
+    buffered->free_strategy(buffered);
+    mmap->free_strategy(mmap);
+
+    printf("✅ Phase 12 Complete!\n\n");
+}
 
 int main(int argc, char *argv[])
 {
@@ -1232,6 +1484,10 @@ int main(int argc, char *argv[])
       test_macros();
     }
     else if (choice == 26)
+    {
+      test_systems_programming();
+    }
+    else if (choice == 27)
     {
       printf("Goodbye!\n");
       break;
