@@ -1074,10 +1074,511 @@ At each phase, you'll have a working database that's increasingly sophisticated.
 | 11 | Callbacks, Polymorphism Patterns, Metaprogramming | Advanced | 10-12 hours |
 | 12 | System Calls, Memory Mapping, Signals, IPC | Advanced-Expert | 12-15 hours |
 | 13 | Network Programming, Replication, Distributed Systems | Expert | 15-20 hours |
+| 14 | Event-Driven I/O, Async Servers, Request Queuing | Expert | 12-16 hours |
+| 15 | Performance Optimization, SIMD, CPU Profiling | Expert | 14-18 hours |
+| 16 | HTTP APIs, REST Design, Protocol Buffers | Advanced-Expert | 10-14 hours |
+| 17 | Production Systems, Security, Monitoring, Deployment | Advanced-Expert | 12-16 hours |
 
 **Total Phases 1-9:** 50-70 hours
 **Total Phases 10-13:** 50-62 hours
-**Grand Total:** 100-130 hours of focused C mastery learning
+**Total Phases 14-17 (Specialization):** 48-64 hours
+**Grand Total (Base):** 100-130 hours
+**Grand Total (With Specialization):** 148-194 hours of focused C mastery learning
+
+---
+
+## SPECIALIZATION PATHS (PHASES 14-17)
+
+After completing Phase 13, you have the foundation to specialize. Below is the **AI/ML-Powered SaaS Specialization Track** - for building production inference servers and ML services.
+
+### Phase 14: Event-Driven Server Architecture & Async I/O
+**Goal:** Build a production-grade asynchronous inference server that handles thousands of concurrent client requests without blocking.
+
+**This Teaches:** Step 14 (Event-Driven Architecture & Concurrency at Scale)
+
+**Difficulty:** Expert
+
+**Relevance:** Critical—teaches real-time request handling at scale, foundation for all modern services
+
+**C Concepts to Cover:**
+- Event-driven architecture and reactor pattern
+- Non-blocking sockets with `fcntl()` and `O_NONBLOCK`
+- `select()` for cross-platform multiplexing (portable to Windows/Linux)
+- `epoll()` on Linux for thousands of concurrent connections
+- `IOCP` (I/O Completion Ports) on Windows
+- Connection state machines and request parsing
+- Event loop design and timing
+- Request queuing and backpressure handling
+- Connection pooling and request prioritization
+- Graceful degradation under load
+
+**Code to Write:**
+- Build an async event loop with `select()`:
+  ```c
+  fd_set read_fds, write_fds;
+  struct timeval timeout;
+  
+  while (running) {
+      FD_ZERO(&read_fds);
+      FD_SET(listen_socket, &read_fds);
+      // Add all client sockets to read_fds
+      
+      int activity = select(max_fd + 1, &read_fds, &write_fds, NULL, &timeout);
+      
+      if (FD_ISSET(listen_socket, &read_fds)) {
+          // Accept new client
+          int client = accept(listen_socket, ...);
+          // Add to event loop
+      }
+      
+      for (int i = 0; i < num_clients; i++) {
+          if (FD_ISSET(clients[i].socket, &read_fds)) {
+              // Read and queue inference request
+              handle_client_request(&clients[i]);
+          }
+          if (FD_ISSET(clients[i].socket, &write_fds)) {
+              // Send queued response asynchronously
+              send_inference_response(&clients[i]);
+          }
+      }
+  }
+  ```
+- Implement request queuing system:
+  - InferenceRequest structures in queue
+  - Priority queue for important requests
+  - Backpressure: reject new requests when queue full
+- Build connection state machine:
+  - CONNECTED → RECEIVING_REQUEST → QUEUED → PROCESSING → SENDING_RESPONSE → IDLE
+  - Handle incomplete reads and partial writes
+- Implement timeout handling:
+  - Abort requests that take too long
+  - Drop idle connections
+  - Health checks for stalled workers
+- Add metrics collection:
+  - Active connections, queue depth, response latencies
+  - Track per-client request rate and success rate
+
+**Real-World Pattern:**
+- **vLLM, Triton, PyTorch Serve:** All use event-driven architectures internally
+- **Redis:** Uses `epoll()` to handle millions of requests per second
+- **Nginx:** Famous for efficient event loop handling concurrent HTTP requests
+- **Your code:** Will handle 10,000+ concurrent inference clients
+
+**Python Comparison to Include:**
+- Python's `asyncio` library abstracts away this complexity
+- Your C code is what's happening under the hood of `async`/`await`
+- Explain: "When you write `async def` in Python, you're using a reactor pattern that we're building here."
+- Concurrency models comparison:
+  - Python: `asyncio` coroutines (single-threaded multiplexing)
+  - C: `select()`/`epoll()` event loops (same concept, explicit)
+  - Go: Goroutines + channels (multi-threaded but easier)
+- Performance: async I/O is 10-100x more efficient than threads for many connections
+
+**Testing & Profiling:**
+- Load test with 1000 concurrent clients using stress-testing tool
+- Measure connection setup/teardown overhead
+- Profile event loop CPU usage (should be low)
+- Test recovery from queue overflow
+- Verify no file descriptor leaks (check with `lsof`)
+- Benchmark against threaded version (should be much faster)
+
+---
+
+### Phase 15: Performance Optimization & Vectorization
+**Goal:** Make inference fast enough to be cost-effective by optimizing hot paths with SIMD and cache-aware techniques.
+
+**This Teaches:** Step 15 (CPU-Level Performance & Optimization)
+
+**Difficulty:** Expert
+
+**Relevance:** Critical—directly impacts model inference speed and cost
+
+**C Concepts to Cover:**
+- CPU profiling with `perf` (Linux) / VTune (Windows)
+- Cache behavior: L1/L2/L3 misses and optimization
+- Memory access patterns and NUMA effects
+- Branch prediction and pipeline stalls
+- SIMD instructions: SSE, AVX, AVX-512
+- Compiler optimizations and inline assembly
+- Vectorization with compiler pragmas (`#pragma omp simd`)
+- Alignment for memory efficiency
+- Profiling results interpretation and bottleneck identification
+- JIT vs. AOT compilation concepts
+
+**Code to Write:**
+- Profile inference kernel with `perf stat`:
+  ```bash
+  perf stat -e cycles,instructions,L1-dcache-load-misses,branch-misses ./inference_server
+  perf record ./inference_server
+  perf report  # Interactive analysis
+  ```
+- Implement vectorized matrix multiplication (core of neural networks):
+  ```c
+  // Naive version: ~1000ms for 1000x1000 matrix multiply
+  void matmul_naive(float *A, float *B, float *C, int n) {
+      for (int i = 0; i < n; i++)
+          for (int j = 0; j < n; j++)
+              for (int k = 0; k < n; k++)
+                  C[i*n + j] += A[i*n + k] * B[k*n + j];
+  }
+  
+  // Optimized version: ~50ms (20x speedup)
+  void matmul_optimized(float *A, float *B, float *C, int n) {
+      // Block matrix multiplication for cache efficiency
+      // SIMD intrinsics for pack operations
+      // Vectorization of inner loop
+      #pragma omp simd collapse(2)
+      for (int i = 0; i < n; i += BLOCK_SIZE)
+          for (int j = 0; j < n; j += BLOCK_SIZE)
+              // ... block computation with prefetching
+  }
+  ```
+- Implement SIMD batch inference:
+  - Process 8 inference requests in parallel with AVX-256
+  - Load 8 inputs, compute 8 predictions, store 8 outputs
+  - Requires data layout optimization (structure of arrays vs arrays of structures)
+- Add prefetching hints:
+  ```c
+  __builtin_prefetch(&matrix[i + CACHE_LINE_SIZE]);
+  ```
+- Optimize memory layout:
+  - Align hot data on cache line boundaries (64 bytes)
+  - Group frequently accessed fields together
+  - NUMA-aware allocation for multi-socket systems
+
+**Real-World Relevance:**
+- **TensorRT, ONNX Runtime:** All use SIMD for batch inference
+- **vLLM:** Achieves 10x speedup through quantization and kernel optimization
+- **Your optimization:** Can reduce inference cost from $10M to $1M annually
+
+**Python Comparison to Include:**
+- NumPy uses optimized BLAS libraries (SIMD under the hood)
+- Your C code is what NumPy calls internally
+- Explain: "When you do `np.dot(A, B)` in Python, use calls heavily optimized C with SIMD."
+- TensorFlow/PyTorch use CUDA/SIMD for GPU/CPU inference
+- Performance difference: Python NumPy vs. unoptimized C = 100x slower
+- Explain: "Optimization is why TensorRT exists—it re-compiles models for maximum speed."
+
+**Testing & Profiling:**
+- Benchmark before/after optimization:
+  - Record `perf stat` baseline
+  - Apply optimization
+  - Record improvement percentage
+- Profile hotspot identification:
+  - Use `perf record` and generate flame graphs
+  - Identify top 3 function consuming CPU time
+- Test cache hit rates:
+  - Compute L1/L2/L3 miss percentages
+  - Improve cache locality
+- Verify correctness:
+  - Optimized version produces same results as naive
+  - SIMD operations are bitwise identical (no numerical errors)
+- Scale test:
+  - Run optimized version on 100+ concurrent requests
+  - Measure total requests/second and latency
+
+---
+
+### Phase 16: HTTP APIs & Production Data Serialization
+**Goal:** Expose your inference server as a professional REST API with efficient serialization and proper HTTP semantics.
+
+**This Teaches:** Step 16 (API Design & Protocol Engineering)
+
+**Difficulty:** Advanced-Expert
+
+**Relevance:** Critical—required for any production service
+
+**C Concepts to Cover:**
+- HTTP/1.1 protocol implementation (request/response cycle)
+- Request routing and URL parsing
+- Query string and header parsing
+- Content negotiation (Accept, Content-Type headers)
+- Protocol Buffers for efficient serialization (vs. JSON)
+- MessagePack as alternative serialization
+- HTTP status codes and error responses
+- Connection keep-alive and pipelining
+- Streaming responses (chunked encoding)
+- CORS headers and security
+
+**Code to Write:**
+- Build minimal HTTP server:
+  ```c
+  // Parse HTTP request line
+  char method[16], path[256], version[16];
+  sscanf(request_line, "%s %s %s", method, path, version);
+  
+  // Route requests
+  if (strcmp(method, "POST") == 0 && strcmp(path, "/v1/infer") == 0) {
+      handle_inference_request(&client);
+  } else if (strcmp(method, "GET") == 0 && strcmp(path, "/health") == 0) {
+      send_response(client, 200, "{\"status\": \"ok\"}");
+  } else {
+      send_response(client, 404, "{\"error\": \"not found\"}");
+  }
+  ```
+- Implement Protocol Buffers encoding/decoding:
+  - Define .proto schema for InferenceRequest and InferenceResponse
+  - Generate C code from protobuf compiler
+  - Use instead of JSON for 10x smaller payloads and faster parsing
+- Build content negotiation:
+  ```c
+  const char *content_type = get_header(request, "Content-Type");
+  if (strstr(content_type, "application/protobuf")) {
+      parse_protobuf_request(&ir, body);
+  } else if (strstr(content_type, "application/json")) {
+      parse_json_request(&ir, body);
+  }
+  ```
+- Implement proper error responses:
+  ```c
+  typedef struct {
+      int error_code;
+      const char *message;
+      const char *request_id;  // For tracing
+      long timestamp_ms;
+  } ErrorResponse;
+  ```
+- Add streaming response support:
+  ```c
+  // For long-running inference
+  send_chunked_header(client);
+  for (int i = 0; i < predictions; i++) {
+      send_chunk(client, &result[i], sizeof(result[i]));
+  }
+  send_final_chunk(client);  // Zero-length chunk
+  ```
+- Build request validation middleware:
+  - Check Content-Length against max payload
+  - Validate required headers
+  - Rate limit check before processing
+
+**Real-World Pattern:**
+- **FastAPI (Python):** High-level abstraction over HTTP
+- **Your C code:** The transport layer for ML inference APIs
+- **Servers like:** vLLM, TGI, Triton all serve HTTP/REST
+- **Protocol choice:** JSON (human-readable) vs. Protobuf (efficient) trade-off
+
+**Python Comparison to Include:**
+- Flask/FastAPI handle all HTTP details for you:
+  ```python
+  @app.post("/v1/infer")
+  async def infer(request: InferenceRequest):
+      result = model.predict(request.input)
+      return {"predictions": result}
+  ```
+- Your C code is what Flask calls internally
+- Explain: "Flask's `jsonify()` is doing serialization. We're building that layer manually."
+- HTTP protocol comparison: Raw sockets vs. high-level frameworks
+- Performance: My C HTTP server vs. Flask = 10-100x faster throughput
+
+**Testing & Profiling:**
+- Test HTTP compliance with `curl`:
+  ```bash
+  curl -X POST http://localhost:8080/v1/infer \
+    -H "Content-Type: application/json" \
+    -d '{"input": [1, 2, 3]}'
+  ```
+- Benchmark serialization performance:
+  - JSON vs. Protobuf latency
+  - Payload size comparison
+  - Parse/encode speed
+- Load test API with varying payload sizes
+- Test error handling:
+  - Invalid JSON, missing fields, too-large payloads
+  - Verify proper 400/413/etc responses
+- Measure HTTP overhead:
+  - Request parsing time
+  - Response serialization time
+  - Header parsing performance
+
+---
+
+### Phase 17: Production Systems, Security & Monitoring
+**Goal:** Build a production-grade inference service with security, observability, and graceful failure handling.
+
+**This Teaches:** Step 17 (Production Engineering & Reliability)
+
+**Difficulty:** Advanced-Expert
+
+**Relevance:** Critical—what separates hobby projects from real services
+
+**C Concepts to Cover:**
+- Authentication and API key validation
+- Rate limiting and quota management
+- Security: input validation, overflow protection, injection prevention
+- Structured logging (JSON-formatted)
+- Metrics collection (counters, histograms, timers)
+- Health checks and readiness probes
+- Graceful shutdown (SIGTERM handling)
+- Resource limits and timeout management
+- Circuit breaker pattern for fault tolerance
+- Request tracing (request IDs across logs)
+- Configuration management (environment variables, config files)
+
+**Code to Write:**
+- Implement API key authentication:
+  ```c
+  typedef struct {
+      const char *api_key;
+      int rate_limit_per_second;
+      int quota_tokens;
+      time_t last_refresh;
+  } ClientQuota;
+  
+  int validate_request(const char *api_key) {
+      ClientQuota *quota = find_quota(api_key);
+      if (quota == NULL) return 401;  // Unauthorized
+      
+      refresh_quota(quota);  // Refill tokens based on time
+      if (quota->quota_tokens <= 0) return 429;  // Too Many Requests
+      
+      quota->quota_tokens--;
+      return 200;  // OK
+  }
+  ```
+- Add structured logging:
+  ```c
+  typedef struct {
+      time_t timestamp;
+      const char *request_id;
+      const char *level;  // "INFO", "WARN", "ERROR"
+      const char *message;
+      int latency_ms;
+      const char *client_id;
+  } LogEntry;
+  
+  void log_request(LogEntry *entry) {
+      // Output as JSON for log aggregation tools
+      printf("{\"timestamp\":\"%lld\",\"request_id\":\"%s\",\"level\":\"%s\","
+             "\"message\":\"%s\",\"latency_ms\":%d,\"client_id\":\"%s\"}\n",
+             entry->timestamp, entry->request_id, entry->level, 
+             entry->message, entry->latency_ms, entry->client_id);
+  }
+  ```
+- Implement metrics collection:
+  ```c
+  typedef struct {
+      uint64_t total_requests;
+      uint64_t total_errors;
+      uint64_t latency_histogram[100];  // Buckets: 0-10ms, 10-20ms, etc.
+      uint64_t queue_depth_samples;
+      uint64_t queue_depth_sum;
+  } Metrics;
+  
+  void record_request_latency(Metrics *m, int latency_ms) {
+      m->total_requests++;
+      int bucket = latency_ms / 10;  // 10ms buckets
+      if (bucket < 100) m->latency_histogram[bucket]++;
+  }
+  
+  void print_metrics(Metrics *m) {
+      double p50 = latency_percentile(m, 50);
+      double p99 = latency_percentile(m, 99);
+      printf("{\"total_requests\":%lu,\"p50_ms\":%.1f,\"p99_ms\":%.1f}\n",
+             m->total_requests, p50, p99);
+  }
+  ```
+- Add health checks:
+  ```c
+  typedef enum {
+      STARTING,
+      READY,
+      DEGRADED,
+      SHUTTING_DOWN
+  } ServiceStatus;
+  
+  ServiceStatus get_health() {
+      if (queue_depth > MAX_QUEUE) return DEGRADED;
+      if (!gpu_available()) return DEGRADED;
+      if (error_rate > CRITICAL_ERROR_RATE) return DEGRADED;
+      return READY;
+  }
+  
+  // Kubernetes liveness/readiness probes call /health endpoint
+  ```
+- Implement graceful shutdown:
+  ```c
+  volatile int shutdown_requested = 0;
+  
+  void signal_handler(int sig) {
+      if (sig == SIGTERM) {
+          shutdown_requested = 1;
+          printf("Graceful shutdown initiated\n");
+      }
+  }
+  
+  // In main loop:
+  while (!shutdown_requested) {
+      handle_events();
+  }
+  
+  // Drain queue, close connections gracefully
+  drain_queue();
+  close_all_connections();
+  ```
+- Add rate limiting and backpressure:
+  ```c
+  int can_accept_request() {
+      if (queue_depth >= MAX_QUEUE) return 0;  // Queue full
+      if (error_rate > CRITICAL_ERROR_RATE) return 0;  // Too many errors
+      if (memory_usage > MAX_MEMORY) return 0;  // OOM risk
+      return 1;
+  }
+  ```
+- Implement request tracing:
+  ```c
+  const char *generate_request_id() {
+      static uint64_t counter = 0;
+      static char request_id[32];
+      snprintf(request_id, sizeof(request_id), "%lld-%lu", 
+               time(NULL), ++counter);
+      return request_id;
+  }
+  // Include request_id in all logs and responses for end-to-end tracing
+  ```
+
+**Real-World Pattern:**
+- **Production ML services:** All implement these patterns
+- **Kubernetes readiness probes:** Call `/health` endpoint
+- **Datadog, New Relic, Prometheus:** Ingest metrics in exactly this format
+- **ELK Stack (Elasticsearch):** Indexes structured logs like these
+- **Your code:** The backend that production monitoring tools track
+
+**Python Comparison to Include:**
+- Python's `logging` module provides structured logging
+- `flask_limiter` for rate limiting in Flask
+- `prometheus_client` for metrics
+- Explain: "These Python libraries wrap what we're building in C."
+- Production systems in Python use same patterns but with library support
+- Your C code is more explicit, giving you fine-grained control
+
+**Testing & Profiling:**
+- Test API authentication:
+  - Valid key → 200 OK
+  - Invalid key → 401 Unauthorized
+  - Expired quota → 429 Too Many Requests
+- Load test with load shedding:
+  - Queue fills up
+  - Server rejects new requests gracefully
+  - Client receives 503 Service Unavailable
+- Verify graceful shutdown:
+  - SIGTERM signal stops accepting new requests
+  - Existing requests complete
+  - Connections close cleanly
+- Monitor resource usage:
+  - Memory growth under load
+  - File descriptor count
+  - CPU usage per request
+- Parse metrics output:
+  - Verify latency percentiles are accurate
+  - Check error rate calculation
+  - Validate queue depth tracking
+- Integration test full flow:
+  - Start service
+  - Send 100 requests in parallel
+  - Trigger graceful shutdown
+  - Verify all requests completed or rejected properly
+  - Check logs contain request IDs for tracing
 
 ---
 
@@ -1104,4 +1605,44 @@ By the end, you'll have built a **real database system** that incorporates all t
 - Why some operations are O(1) and others O(n)
 - How to profile and optimize real code
 
-**This is not just learning C syntax. This is becoming a systems programmer.**
+### Specialization Track (Phases 14-17): AI/ML-Powered SaaS Production Services
+
+After mastering Phases 1-13, you have the option to specialize in **production ML systems engineering**:
+
+10. **Event-Driven Architecture** (Phase 14) - Build async servers handling 10,000+ concurrent clients
+11. **Performance Optimization** (Phase 15) - SIMD vectorization, CPU profiling, achieving 20x speedups
+12. **HTTP APIs & Serialization** (Phase 16) - REST design, Protocol Buffers, efficient client communication
+13. **Production Engineering** (Phase 17) - Rate limiting, authentication, observability, graceful degradation
+
+This specialization path gives you the **complete ML infrastructure engineering skillset**:
+- How inference servers handle millions of queries daily
+- How vectorization reduces inference costs by 10x
+- How async I/O serves more clients with fewer resources
+- How production systems maintain 99.99% uptime
+- How to profile and optimize at every layer
+
+You'll be able to build systems like:
+- **vLLM** (serving 1000 concurrent LLM clients)
+- **Triton Inference Server** (NVIDIA's production inference platform)
+- **SageMaker** (Amazon's ML serving infrastructure)
+- Startup ML services processing billions of inferences monthly
+
+---
+
+## TWO PATHS AFTER PHASE 13
+
+**Path A: Full-Stack Systems Engineer** (Complete Phases 14-17)
+- Master production ML infrastructure
+- Build inference servers and distributed systems
+- Specialize in performance and reliability
+- **Career:** ML infrastructure at tech companies, startups
+
+**Path B: Continue Exploring C** (Select your own projects)
+- Deep dive into specific domains (embedded, security, compilers)
+- Contribute to real open-source projects (SQLite, Redis, Linux)
+- Specialize in your area of interest
+- **Career:** Systems engineer at any company
+
+---
+
+**This is not just learning C syntax. This is becoming a systems programmer — and optionally, a production ML engineer.**
