@@ -11,10 +11,19 @@ The new project will live inside the [DB-Proj](DB-Proj) folder. That folder is t
 ## Working Rules
 
 - Prefer the best real implementation, not a toy shortcut.
-- Build one phase at a time.
+- Build one milestone at a time.
 - Always keep the project usable at each stage.
 - Use Python comparisons as mental bridges when learning concepts.
 - Treat error handling, memory management, and testing as part of the lesson, not as optional extras.
+
+## Milestone Policy
+
+This project is now run as a production-grade build, not as a stream of small phase edits.
+
+- Each milestone must be complete end to end before the next one begins.
+- No scope drift or small in-between additions unless they are required to finish the current milestone.
+- Documentation, code, and tests should all agree on the same milestone boundary.
+- If a feature is part of the milestone, we finish it fully instead of leaving a partial version behind.
 
 ## Project Direction
 
@@ -61,9 +70,9 @@ The frontend will use:
 
 This keeps the UI lightweight while still making the project feel like a real application.
 
-## Phases We Are Taking to Completion
+## Milestone Roadmap
 
-We are following the guide through **Phase 14** and stopping there for this project.
+We are following the guide through **Phase 14** and stopping there for this project, but we will deliver it as complete milestones rather than scattered micro-steps.
 
 ### Phase 1: Basic Data Structures
 - Build record structs
@@ -251,6 +260,8 @@ This project is complete when Phase 14 is finished and the system can:
 - process records correctly
 - return responses without blocking
 - remain understandable as a learning project
+
+The documentation and implementation should stay aligned with this completion boundary instead of adding unrelated side tasks mid-stream.
 
 ## Next Step
 

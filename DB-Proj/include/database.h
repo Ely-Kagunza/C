@@ -31,4 +31,10 @@ void database_display(const Database *db);
 int database_save_text(const Database *db, const char *filename);
 Database *database_load_text(const char *filename);
 
+int database_update_person(Database *db, int id, Person updated_person);
+int database_delete_person(Database *db, int id);
+int database_id_exists(Database *db, int id);
+Person *database_find_by_name(const Database *db, const char *name);
+void database_find_all_by_name(const Database *db, const char *name);
+
 #endif
