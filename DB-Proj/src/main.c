@@ -193,6 +193,7 @@ int main(void) {
 
             case 2:
                 database_display(db);
+                database_print_stats(db);
                 break;
 
             case 3: {
@@ -329,6 +330,7 @@ int main(void) {
                 } else {
                     printf("Failed to save database\n");
                 }
+                database_print_stats(db);
                 break;
 
             case 11: {
@@ -340,6 +342,7 @@ int main(void) {
                     db = loaded;
                     printf("Database loaded successfully\n");
                 }
+                database_print_stats(db);
                 break;
             }
 
@@ -369,7 +372,7 @@ int main(void) {
                     printf("Invalid age input\n");
                     break;
                 }
-                
+
                 database_compare_search_by_age(db, age);
                 break;
             }

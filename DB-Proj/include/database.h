@@ -34,4 +34,8 @@ void database_display(const Database *db);
 int database_save_text(const Database *db, const char *filename);
 Database *database_load_text(const char *filename);
 
+int database_compact(Database *db);
+size_t database_memory_usage_bytes(const Database *db);
+void database_print_stats(const Database *db);
+
 #endif

@@ -20,7 +20,22 @@ Person person_create(int id, const char *name, int age, double salary) {
     return person;
 }
 
-static int database_resize(Database *db, int new_capacity) {
+static int database_reserve(Database *db, int min_capacity) {
+    if (!db) {
+        return 0;
+    }
+
+    if (min_capacity <= db->capacity) {
+        return 1;
+    }
+
+    int new_capacity = db->capacity > 0 ? db->capacity : 4;
+    while (new_capacity < min_capacity) {
+        new_capacity *= 2;
+    }
+
+    printf("Reallocating from %d to %d\n", db->capacity, new_capacity);
+
     Person *new_records = realloc(db->records, (size_t)new_capacity * sizeof(Person));
     if (!new_records) {
         return 0;
@@ -86,14 +101,39 @@ int database_add_person(Database *db, Person person) {
         return 0;
     }
 
-    if (db->count >= db->capacity) {
-        int new_capacity = db->capacity * 2;
-        if (!database_resize(db, new_capacity)) {
-            return 0;
-        }
+    if (!database_reserve(db, db->count + 1)) {
+        return 0;
     }
 
     db->records[db->count++] = person;
+    return 1;
+}
+
+int database_compact(Database *db) {
+    if (!db) {
+        return 0;
+    }
+
+    int target_capacity = db->capacity;
+
+    if (db->count == 0) {
+        target_capacity = 4;
+    } else if (db->capacity > 4 && db->count * 4 < db->capacity) {
+        target_capacity = db->count * 2;
+        if (target_capacity < 4) {
+            target_capacity = 4;
+        }
+    } else {
+        return 1;
+    }
+
+    Person *new_records = realloc(db->records, (size_t)target_capacity * sizeof(Person));
+    if (!new_records) {
+        return 0;
+    }
+
+    db->records = new_records;
+    db->capacity = target_capacity;
     return 1;
 }
 
@@ -124,6 +164,7 @@ int database_delete_person(Database *db, int id) {
             }
 
             db->count--;
+            database_compact(db);
             return 1;
         }
     }
@@ -243,4 +284,25 @@ Database *database_load_text(const char *filename) {
 
     fclose(file);
     return db;
+}
+
+
+size_t database_memory_usage_bytes(const Database *db) {
+    if (!db) {
+        return 0;
+    }
+
+    return sizeof(Database) + (size_t)db->capacity * sizeof(Person);
+}
+
+void database_print_stats(const Database *db) {
+    if (!db) {
+        printf("Database is NULL\n");
+        return;
+    }
+
+    printf("\nDatabase stats\n");
+    printf("Count: %d\n", db->count);
+    printf("Capacity: %d\n", db->capacity);
+    printf("Approx memory: %zu bytes\n", database_memory_usage_bytes(db));
 }
