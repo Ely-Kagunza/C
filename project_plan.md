@@ -15,6 +15,7 @@ The new project will live inside the [DB-Proj](DB-Proj) folder. That folder is t
 - Always keep the project usable at each stage.
 - Use Python comparisons as mental bridges when learning concepts.
 - Treat error handling, memory management, and testing as part of the lesson, not as optional extras.
+- Put code in its rightful folder and file. Do not place code in the wrong module just because it is convenient.
 
 ## Milestone Policy
 

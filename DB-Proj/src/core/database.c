@@ -3,29 +3,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-
-static void to_lower_copy(char *dest, const char *src, size_t size) {
-    size_t i = 0;
-    for (; i + 1 < size && src[i] != '\0'; i++) {
-        dest[i] = (char)tolower((unsigned char)src[i]);
-    }
-    dest[i] = '\0';
-}
-
-static int contains_ignore_case(const char *text, const char *pattern) {
-    char lower_text[NAME_SIZE];
-    char lower_pattern[NAME_SIZE];
-
-    if (!text || !pattern) {
-        return 0;
-    }
-
-    to_lower_copy(lower_text, text, sizeof(lower_text));
-    to_lower_copy(lower_pattern, pattern, sizeof(lower_pattern));
-
-    return strstr(lower_text, lower_pattern) != NULL;
-}
 
 Person person_create(int id, const char *name, int age, double salary) {
     Person person;
@@ -44,7 +21,7 @@ Person person_create(int id, const char *name, int age, double salary) {
 }
 
 static int database_resize(Database *db, int new_capacity) {
-    Person *new_records = realloc(db->records, new_capacity * sizeof(Person));
+    Person *new_records = realloc(db->records, (size_t)new_capacity * sizeof(Person));
     if (!new_records) {
         return 0;
     }
@@ -95,45 +72,8 @@ int database_id_exists(Database *db, int id) {
             return 1;
         }
     }
-    
+
     return 0;
-}
-
-Person *database_find_by_name(const Database *db, const char *name) {
-    if (!db || !name) {
-        return NULL;
-    }
-
-    for (int i = 0; i < db->count; i++) {
-        if (_stricmp(db->records[i].name, name) == 0) {
-            return &db->records[i];
-        }
-    }
-
-    return NULL;
-}
-
-void database_find_all_by_name(const Database *db, const char *name) {
-    if (!db || !name) {
-        return;
-    }
-
-    int found_any = 0;
-
-    printf("\n%-6s %-20s %-6s %-12s\n", "ID", "Name", "Age", "Salary");
-    printf("------------------------------------------------------\n");
-
-    for (int i = 0; i < db->count; i++) {
-        if (contains_ignore_case(db->records[i].name, name)) {
-            const Person *p = &db->records[i];
-            printf("%-6d %-20s %-6d %-12.2f\n", p->id, p->name, p->age, p->salary);
-            found_any = 1;
-        }
-    }
-
-    if (!found_any) {
-        printf("No matching people found for name fragment '%s'\n", name);
-    }
 }
 
 int database_add_person(Database *db, Person person) {
@@ -285,10 +225,10 @@ Database *database_load_text(const char *filename) {
 
         Person person;
         if (sscanf(line, "%d|%63[^|]|%d|%lf",
-                    &person.id,
-                    person.name,
-                    &person.age,
-                    &person.salary) != 4) {
+                   &person.id,
+                   person.name,
+                   &person.age,
+                   &person.salary) != 4) {
             database_free(db);
             fclose(file);
             return NULL;

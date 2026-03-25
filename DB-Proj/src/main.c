@@ -1,4 +1,5 @@
 #include "../include/database.h"
+#include "../include/query.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -97,6 +98,30 @@ static int create_person_from_input(Person *person) {
     return 1;
 }
 
+static int read_age_range(int *min_age, int *max_age) {
+    if (!read_int("Enter minimum age: ", min_age)) {
+        return 0;
+    }
+
+    if (!read_int("Enter maximum age: ", max_age)) {
+        return 0;
+    }
+
+    return 1;
+}
+
+static int read_salary_range(double *min_salary, double *max_salary) {
+    if (!read_double("Enter minimum salary: ", min_salary)) {
+        return 0;
+    }
+
+    if (!read_double("Enter maximum salary: ", max_salary)) {
+        return 0;
+    }
+
+    return 1;
+}
+
 static void seed_sample_data(Database *db) {
     if (!database_add_person(db, person_create(1, "Alice", 30, 50000.0)) ||
         !database_add_person(db, person_create(2, "Bob", 24, 42000.0)) ||
@@ -114,11 +139,17 @@ static void show_menu(void) {
     printf("3. Find person by ID\n");
     printf("4. Find person by Name\n");
     printf("5. Find all people by Name fragment\n");
-    printf("6. Update person by ID\n");
-    printf("7. Delete person by ID\n");
-    printf("8. Save database\n");
-    printf("9. Load database\n");
-    printf("10. Seed sample data\n");
+    printf("6. Find people by Age range\n");
+    printf("7. Find people by Salary range\n");
+    printf("8. Update person by ID\n");
+    printf("9. Delete person by ID\n");
+    printf("10. Save database\n");
+    printf("11. Load database\n");
+    printf("12. Seed sample data\n");
+    printf("13. Sort by age\n");
+    printf("14. Sort by salary\n");
+    printf("15. Sort by name\n");
+    printf("16. Compare age search performance\n");
     printf("0. Exit\n");
 }
 
@@ -218,6 +249,36 @@ int main(void) {
             }
 
             case 6: {
+                int min_age = 0;
+                int max_age = 0;
+
+                if (!read_age_range(&min_age, &max_age)) {
+                    printf("Invalid age range input\n");
+                    break;
+                }
+
+                printf("\nMatching people:\n");
+                database_find_by_age_range(db, min_age, max_age);
+                printf("\n");
+                break;   
+            }
+
+            case 7: {
+                double min_salary = 0.0;
+                double max_salary = 0.0;
+                
+                if (!read_salary_range(&min_salary, &max_salary)) {
+                    printf("Invalid salary range input\n");
+                    break;
+                }
+
+                printf("\nMatching people:\n");
+                database_find_by_salary_range(db, min_salary, max_salary);
+                printf("\n");
+                break;
+            }
+
+            case 8: {
                 int id = 0;
                 Person updated;
 
@@ -245,7 +306,7 @@ int main(void) {
                 break;
             }
 
-            case 7: {
+            case 9: {
                 int id = 0;
 
                 if (!read_int("Enter ID to delete: ", &id)) {
@@ -262,7 +323,7 @@ int main(void) {
             }
 
 
-            case 8:
+            case 10:
                 if (database_save_text(db, "people.txt")) {
                     printf("Database saved successfully\n");
                 } else {
@@ -270,7 +331,7 @@ int main(void) {
                 }
                 break;
 
-            case 9: {
+            case 11: {
                 Database *loaded = database_load_text("people.txt");
                 if (!loaded) {
                     printf("Failed to load database from file\n");
@@ -282,9 +343,36 @@ int main(void) {
                 break;
             }
 
-            case 10:
+            case 12:
                 seed_sample_data(db);
                 break;
+
+            case 13:
+                database_sort_by_age(db);
+                printf("Sorted by age\n");
+                break;
+
+            case 14:
+                database_sort_by_salary(db);
+                printf("Sorted by salary\n");
+                break;
+
+            case 15:
+                database_sort_by_name(db);
+                printf("Sorted by name\n");
+                break;
+
+            case 16: {
+                int age = 0;
+
+                if (!read_int("Enter age to compare search performance: ", &age)) {
+                    printf("Invalid age input\n");
+                    break;
+                }
+                
+                database_compare_search_by_age(db, age);
+                break;
+            }
 
             case 0:
                 running = 0;
