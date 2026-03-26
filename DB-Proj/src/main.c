@@ -1,5 +1,6 @@
 #include "../include/database.h"
 #include "../include/query.h"
+#include "../include/hash_index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -150,6 +151,7 @@ static void show_menu(void) {
     printf("14. Sort by salary\n");
     printf("15. Sort by name\n");
     printf("16. Compare age search performance\n");
+    printf("17. Print hash index statistics\n");
     printf("0. Exit\n");
 }
 
@@ -162,6 +164,11 @@ int main(void) {
     if (!db) {
         printf("Failed to initialize database\n");
         return 1;
+    }
+
+    HashIndex *index = hash_index_create(8);
+    if (index && db->count > 0) {
+        hash_index_build(index, db);
     }
 
     int running = 1;
@@ -187,6 +194,9 @@ int main(void) {
                     printf("Failed to add person\n");
                 } else {
                     printf("Person added successfully\n");
+                    if (index) {
+                        hash_index_insert(index, &db->records[db->count - 1]);
+                    }
                 }
                 break;
             }
@@ -203,7 +213,7 @@ int main(void) {
                     break;
                 }
 
-                Person *found = database_find_by_id(db, id);
+                Person *found = index ? hash_index_find_by_id(index, id) : database_find_by_id(db, id);
                 if (found) {
                     printf("\nFound person:\n");
                     printf("ID: %d\n", found->id);
@@ -317,6 +327,9 @@ int main(void) {
 
                 if (database_delete_person(db, id)) {
                     printf("Person deleted successfully\n");
+                    if (index) {
+                        hash_index_remove(index, id);
+                    }
                 } else {
                     printf("No person found with ID %d\n", id);
                 }
@@ -341,6 +354,9 @@ int main(void) {
                     database_free(db);
                     db = loaded;
                     printf("Database loaded successfully\n");
+                    if (index) {
+                        hash_index_build(index, db);
+                    }
                 }
                 database_print_stats(db);
                 break;
@@ -377,6 +393,11 @@ int main(void) {
                 break;
             }
 
+            case 17:
+                hash_index_print_stats(index);
+                hash_index_print_buckets(index);
+                break;
+
             case 0:
                 running = 0;
                 break;
@@ -388,6 +409,9 @@ int main(void) {
     }
 
     database_save_text(db, "people.txt");
+    if (index) {
+        hash_index_free(index);
+    }
     database_free(db);
     return 0;
 }
