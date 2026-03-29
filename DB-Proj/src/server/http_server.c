@@ -272,6 +272,9 @@ void http_build_response(ClientConnection *client, const char *body, int status_
                                        sizeof(client->response_buffer) - 1,
                                        "HTTP/1.1 %d %s\r\n"
                                        "Content-Type: application/json\r\n"
+                                       "Access-Control-Allow-Origin: *\r\n"
+                                       "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                                       "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
                                        "Content-Length: %zu\r\n"
                                        "Connection: close\r\n"
                                        "\r\n"

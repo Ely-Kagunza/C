@@ -65,8 +65,15 @@ char *json_success(const char *data) {
     if (!data) data = "";
 
     memset(json_buffer, 0, sizeof(json_buffer));
-    snprintf(json_buffer, sizeof(json_buffer) - 1,
-        "{\"success\":true,\"data\":\"%s\"}", data);
+
+    // If data is already JSON, don't quote it
+    if (data[0] == '{' || data[0] == '[') {
+        snprintf(json_buffer, sizeof(json_buffer) - 1,
+            "{\"success\":true,\"data\":%s}", data);
+    } else {
+        snprintf(json_buffer, sizeof(json_buffer) - 1,
+            "{\"success\":true,\"data\":\"%s\"}", data);
+    }
 
     return json_buffer;
 }
