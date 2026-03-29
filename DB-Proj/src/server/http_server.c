@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include "../../include/api.h"
+#include "../../include/query_cache.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -328,6 +329,16 @@ AsyncServer *http_server_create(ServerConfig config, Database *db, BTreeIndex *a
         return NULL;
     }
 
+    // Create query cache
+    server->query_cache = query_cache_create(32);
+    if (!server->query_cache)
+    {
+        request_queue_free(server->queue);
+        free(server->clients);
+        free(server);
+        return NULL;
+    }
+
     http_server_log(server, "INFO", "AsyncServer created (max_clients=%d, port=%d)",
                     config.max_clients, config.port);
 
@@ -437,6 +448,7 @@ void http_server_free(AsyncServer *server)
     DeleteCriticalSection(&server->db_lock);
 
     request_queue_free(server->queue);
+    query_cache_free(server->query_cache);
     free(server->clients);
 
     WSACleanup();

@@ -2,6 +2,7 @@
 #include "../../include/api.h"
 #include "../../include/json_utils.h"
 #include "../../include/hash_index.h"
+#include "../../include/query_cache.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -123,9 +124,44 @@ void api_age_range(AsyncServer *server, ClientConnection *client, int min_age, i
     if (!server || !client)
         return;
 
-    EnterCriticalSection(&server->db_lock);
+    // Format cache key
+    char cache_key[256];
+    format_cache_key(cache_key, 0, min_age, max_age); // 0 = age
 
+    http_server_log(server, "DEBUG", "[%s] AGE RANGE: checking cache for %s", client->request_id, cache_key);
+
+    // Check cache first
+    CachedRangeQuery *cached = query_cache_lookup(server->query_cache, cache_key);
+    if (cached)
+    {
+        http_server_log(server, "INFO", "[%s] CACHE HIT: %s (%d results)", client->request_id, cache_key, cached->result_count);
+        // Build response from cache
+        static char json_array[MAX_RESPONSE_SIZE];
+        strcpy(json_array, "[");
+        for (int i = 0; i < cached->result_count; i++)
+        {
+            if (i > 0)
+                strcat(json_array, ",");
+            strcat(json_array, person_to_json(cached->results[i]));
+        }
+        strcat(json_array, "]");
+        http_build_response(client, json_array, 200);
+        return;
+    }
+
+    http_server_log(server, "INFO", "[%s] CACHE MISS: %s (querying B-tree)", client->request_id, cache_key);
+
+    // Cache miss - query database
+    EnterCriticalSection(&server->db_lock);
     RangeResult result = btree_range_query(server->age_index, min_age, max_age);
+    LeaveCriticalSection(&server->db_lock);
+
+    // Store in cache
+    if (result.count > 0)
+    {
+        http_server_log(server, "INFO", "[%s] CACHE STORE: %s (%d results)", client->request_id, cache_key, result.count);
+        query_cache_insert(server->query_cache, cache_key, result.results, result.count);
+    }
 
     char *response;
     if (result.count == 0)
@@ -150,8 +186,6 @@ void api_age_range(AsyncServer *server, ClientConnection *client, int min_age, i
     strncpy(response_copy, response, sizeof(response_copy) - 1);
 
     range_result_free(&result);
-    LeaveCriticalSection(&server->db_lock);
-
     http_build_response(client, response_copy, 200);
 }
 
@@ -162,9 +196,44 @@ void api_salary_range(AsyncServer *server, ClientConnection *client, double min_
     if (!server || !client)
         return;
 
-    EnterCriticalSection(&server->db_lock);
+    // Format cache key
+    char cache_key[256];
+    format_cache_key(cache_key, 1, min_salary, max_salary); // 1 = salary
 
+    http_server_log(server, "DEBUG", "[%s] SALARY RANGE: checking cache for %s", client->request_id, cache_key);
+
+    // Check cache first
+    CachedRangeQuery *cached = query_cache_lookup(server->query_cache, cache_key);
+    if (cached)
+    {
+        http_server_log(server, "INFO", "[%s] CACHE HIT: %s (%d results)", client->request_id, cache_key, cached->result_count);
+        // Build response from cache
+        static char json_array[MAX_RESPONSE_SIZE];
+        strcpy(json_array, "[");
+        for (int i = 0; i < cached->result_count; i++)
+        {
+            if (i > 0)
+                strcat(json_array, ",");
+            strcat(json_array, person_to_json(cached->results[i]));
+        }
+        strcat(json_array, "]");
+        http_build_response(client, json_array, 200);
+        return;
+    }
+
+    http_server_log(server, "INFO", "[%s] CACHE MISS: %s (querying B-tree)", client->request_id, cache_key);
+
+    // Cache miss - query database
+    EnterCriticalSection(&server->db_lock);
     RangeResult result = btree_range_query(server->salary_index, min_salary, max_salary);
+    LeaveCriticalSection(&server->db_lock);
+
+    // Store in cache
+    if (result.count > 0)
+    {
+        http_server_log(server, "INFO", "[%s] CACHE STORE: %s (%d results)", client->request_id, cache_key, result.count);
+        query_cache_insert(server->query_cache, cache_key, result.results, result.count);
+    }
 
     char *response;
     if (result.count == 0)
@@ -189,8 +258,6 @@ void api_salary_range(AsyncServer *server, ClientConnection *client, double min_
     strncpy(response_copy, response, sizeof(response_copy) - 1);
 
     range_result_free(&result);
-    LeaveCriticalSection(&server->db_lock);
-
     http_build_response(client, response_copy, 200);
 }
 
@@ -249,6 +316,10 @@ void api_add_person(AsyncServer *server, ClientConnection *client, const char *j
     {
         http_server_log(server, "ERROR", "[%s] ADD PERSON: failed to save database", client->request_id);
     }
+
+    // Invalidate cache
+    query_cache_invalidate(server->query_cache);
+    http_server_log(server, "INFO", "[%s] CACHE INVALIDATED: All entries cleared after add", client->request_id);
 
     LeaveCriticalSection(&server->db_lock);
 
@@ -315,6 +386,10 @@ void api_update_person(AsyncServer *server, ClientConnection *client, int id, co
         http_server_log(server, "ERROR", "[%s] UPDATE PERSON: failed to save database", client->request_id);
     }
 
+    // Invalidate cache
+    query_cache_invalidate(server->query_cache);
+    http_server_log(server, "INFO", "[%s] CACHE INVALIDATED: All entries cleared after update", client->request_id);
+
     // Note: B-Tree indexes are read-only for now
     // In production, you'd rebuild indexes after updates
 
@@ -365,6 +440,10 @@ void api_delete_person(AsyncServer *server, ClientConnection *client, int id)
     {
         http_server_log(server, "ERROR", "[%s] DELETE PERSON: failed to save database", client->request_id);
     }
+
+    // Invalidate cache
+    query_cache_invalidate(server->query_cache);
+    http_server_log(server, "INFO", "[%s] CACHE INVALIDATED: All entries cleared after delete", client->request_id);
 
     LeaveCriticalSection(&server->db_lock);
 

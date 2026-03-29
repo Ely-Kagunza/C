@@ -5,6 +5,7 @@
 #include "database.h"
 #include "btree_index.h"
 #include "hash_index.h"
+#include "query_cache.h"
 #include <stdint.h>
 #include <time.h>
 #include <winsock2.h>
@@ -120,6 +121,7 @@ typedef struct
     BTreeIndex *age_index;
     BTreeIndex *salary_index;
     HashIndex *id_index;
+    QueryCache *query_cache;
     CRITICAL_SECTION db_lock;
 
     // Metrics
